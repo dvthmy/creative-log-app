@@ -42,25 +42,58 @@
   .badge.bookwise{color:var(--bookwise);background:var(--bookwise-soft)}
   .badge.kind{color:var(--muted);background:#EFEBE0;font-weight:600}
 
-  /* ---- dashboard cards (Phần 1) ---- */
-  .dash-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:16px;margin-bottom:26px}
-  .dash-card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:20px 22px}
-  .dash-card .big{font-size:36px;font-weight:800;color:var(--accent);line-height:1}
-  .dash-card .lbl{font-size:11.5px;color:var(--muted);margin-top:6px;text-transform:uppercase;letter-spacing:.06em;font-weight:700}
-  .chip-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
-  .style-chip{display:flex;align-items:center;gap:6px;font-size:11.5px;background:var(--card-soft);
-    border:1px solid var(--line);border-radius:999px;padding:5px 10px;position:relative}
-  .style-chip b{color:var(--ink);font-weight:700;min-width:10px;display:inline-block;text-align:right}
-  .style-chip span{color:var(--muted)}
-  .style-chip .chip-del{background:none;border:none;color:#C9C2B4;cursor:pointer;font-size:11px;padding:0;margin-left:2px}
-  .style-chip .chip-del:hover{color:var(--bad)}
-  .chip-add{border:1.5px dashed var(--line);border-radius:999px;padding:5px 12px;font-size:11.5px;color:var(--muted);
-    background:transparent;cursor:pointer}
-  .chip-add:hover{border-color:var(--accent);color:var(--accent)}
+  /* ---- KPI filter + tiles + table (Phần 1) ---- */
+  .kpi-filter{display:flex;gap:8px;margin-bottom:16px}
+  .kpi-filter-btn{border:1px solid var(--line);background:var(--card);color:var(--muted);border-radius:999px;
+    padding:7px 16px;font-size:12.5px;font-weight:700;cursor:pointer}
+  .kpi-filter-btn:hover{border-color:var(--accent);color:var(--accent)}
+  .kpi-filter-btn.active{background:var(--ink);border-color:var(--ink);color:#fff}
+  .kpi-tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px}
+  @media(max-width:700px){.kpi-tiles{grid-template-columns:1fr}}
+  .kpi-tile{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--line);
+    border-radius:var(--radius);padding:18px 20px}
+  .kpi-tile.total{border-left-color:var(--accent)}
+  .kpi-tile.bookwise{border-left-color:var(--bookwise)}
+  .kpi-tile.soulie{border-left-color:var(--soulie)}
+  .kpi-tile .lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:700}
+  .kpi-tile .big{font-size:32px;font-weight:800;color:var(--ink);line-height:1;margin-top:6px}
+  .kpi-tile.total .big{color:var(--accent)}
+  .kpi-tile.bookwise .big{color:var(--bookwise)}
+  .kpi-tile.soulie .big{color:var(--soulie)}
+  .kpi-tile .sub{font-size:11.5px;color:var(--muted);margin-top:6px}
+  table.kpi-table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);
+    border-radius:var(--radius);overflow:hidden;margin-bottom:26px}
+  table.kpi-table th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);
+    padding:10px 14px;background:var(--card-soft);border-bottom:1px solid var(--line)}
+  table.kpi-table td{padding:11px 14px;font-size:13px;border-bottom:1px solid var(--line)}
+  table.kpi-table th:not(:first-child),table.kpi-table td:not(:first-child){text-align:right}
+  table.kpi-table td:nth-child(2){color:var(--bookwise);font-weight:700}
+  table.kpi-table td:nth-child(3){color:var(--soulie);font-weight:700}
+  table.kpi-table tr:last-child td{border-bottom:none;font-weight:800}
   .empty-note{color:#B7B0A2;font-size:12px;margin-top:10px;font-style:italic}
   .sync-btn{border:none;background:none;color:var(--muted);font-size:10.5px;cursor:pointer;padding:0;margin-left:6px}
   .sync-btn:hover{color:var(--accent);text-decoration:underline}
 
+  /* ---- highlights this week — autoplay video grid ---- */
+  .highlight-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:14px}
+  .hl-card{position:relative;border-radius:12px;overflow:hidden;background:#14110D;aspect-ratio:9/16;
+    box-shadow:0 6px 18px rgba(20,17,13,.14)}
+  .hl-card video,.hl-card iframe{width:100%;height:100%;object-fit:cover;border:0;display:block;pointer-events:none}
+  .hl-card iframe{transform:scale(1.15);transform-origin:center}
+  .hl-badge{position:absolute;top:6px;right:6px;font-size:9px;font-weight:800;padding:2px 7px;border-radius:999px;
+    text-transform:uppercase;letter-spacing:.04em;color:#fff;z-index:2}
+  .hl-badge.soulie{background:var(--soulie)}
+  .hl-badge.bookwise{background:var(--bookwise)}
+  .hl-title-wrap{position:absolute;left:0;right:0;bottom:0;padding:16px 8px 8px;z-index:2;
+    background:linear-gradient(to top, rgba(10,8,6,.88), rgba(10,8,6,0))}
+  .hl-title{font-size:10.5px;font-weight:800;color:#fff;line-height:1.25;text-shadow:0 1px 3px rgba(0,0,0,.4)}
+
+  .plan-cols{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  @media(max-width:900px){.plan-cols{grid-template-columns:1fr}}
+  .plan-col-title{font-size:12.5px;margin:0 0 8px;padding:3px 10px;border-radius:999px;display:inline-flex;
+    font-weight:800}
+  .plan-col-title.bookwise{color:var(--bookwise);background:var(--bookwise-soft)}
+  .plan-col-title.soulie{color:var(--soulie);background:var(--soulie-soft)}
   table.plan-table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);
     border-radius:var(--radius);overflow:hidden}
   table.plan-table th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);
@@ -68,10 +101,7 @@
   table.plan-table td{padding:11px 14px;font-size:13px;border-bottom:1px solid var(--line);vertical-align:middle}
   table.plan-table tr:last-child td{border-bottom:none}
   table.plan-table td.count{font-weight:800;color:var(--accent);text-align:center;width:64px}
-  table.plan-table td.app-cell,table.plan-table td.kind-cell{width:100px}
-  table.plan-table .row-del{background:none;border:none;color:#C9C2B4;cursor:pointer;font-size:12px}
-  table.plan-table .row-del:hover{color:var(--bad)}
-  .plan-foot{display:flex;gap:14px;align-items:center;margin-top:10px}
+  table.plan-table td.kind-cell{width:80px}
 
   /* ---- collapsible date-range groups ---- */
   .group-block{margin-bottom:6px}
@@ -83,9 +113,9 @@
 
   /* ---- experiment rows (Phần 2 & 3) ---- */
   .exp-row{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--rowaccent,var(--accent));
-    border-radius:var(--radius);padding:18px 20px;margin-bottom:14px;display:grid;
-    grid-template-columns:1.15fr 1fr 1fr 1fr;gap:18px}
-  @media(max-width:1100px){.exp-row{grid-template-columns:1fr}}
+    border-radius:var(--radius);padding:18px 20px;margin-bottom:14px;display:flex;flex-direction:column;gap:16px}
+  .exp-block{border-top:1px solid var(--line);padding-top:14px}
+  .exp-block:first-child{border-top:none;padding-top:0}
   .col-label{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);
     margin-bottom:7px;font-weight:700}
   .exp-head{display:flex;align-items:center;gap:6px;margin-bottom:8px}
@@ -103,23 +133,33 @@
   .row-title{font-size:11.5px;color:var(--muted);margin-top:5px}
 
   /* ---- media stack (multi image/video + fullscreen) ---- */
-  .mstack{display:flex;flex-wrap:wrap;gap:8px}
-  .mitem-wrap{width:88px}
-  .mitem{width:100%;aspect-ratio:9/16;border-radius:10px;overflow:hidden;background:var(--card-soft);
-    border:1px solid var(--line);position:relative;cursor:zoom-in}
+  .mstack{display:flex;flex-wrap:wrap;gap:14px}
+  .mstack-row{flex-wrap:nowrap;overflow-x:auto;padding-bottom:6px}
+  .mitem-wrap{width:150px}
+  .mitem{width:100%;aspect-ratio:9/16;border-radius:12px;overflow:hidden;background:#14110D;
+    border:1px solid var(--line);position:relative;cursor:zoom-in;box-shadow:0 6px 18px rgba(20,17,13,.14);
+    transition:transform .12s,box-shadow .12s}
+  .mitem:hover{transform:translateY(-2px);box-shadow:0 12px 26px rgba(20,17,13,.22)}
   .mitem iframe,.mitem img,.mitem video{width:100%;height:100%;object-fit:cover;border:0;display:block;pointer-events:none}
-  .mitem-tools{position:absolute;top:4px;right:4px;display:flex;gap:3px;z-index:2}
-  .micon-btn{width:20px;height:20px;border-radius:6px;background:rgba(20,17,13,.6);color:#fff;border:none;
-    font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
+  .mitem iframe{transform:scale(1.15);transform-origin:center}
+  .mitem-tools{position:absolute;top:6px;right:6px;display:flex;gap:4px;z-index:3}
+  .micon-btn{width:22px;height:22px;border-radius:7px;background:rgba(20,17,13,.55);color:#fff;border:none;
+    font-size:10.5px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
   .micon-btn:hover{background:var(--accent)}
-  .mitem-cap{font-size:9.5px;color:var(--muted);margin-top:4px;line-height:1.3;text-align:center;min-height:12px}
-  .madd-wrap{width:88px;display:flex;flex-direction:column;align-items:center}
-  .madd{width:100%;aspect-ratio:9/16;border-radius:10px;border:1.5px dashed var(--line);background:transparent;
-    color:#B7B0A2;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+  .mitem-play{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:34px;height:34px;
+    border-radius:50%;background:rgba(255,255,255,.16);backdrop-filter:blur(2px);border:1px solid rgba(255,255,255,.5);
+    display:flex;align-items:center;justify-content:center;z-index:2;pointer-events:none}
+  .mitem-play:after{content:'';border-style:solid;border-width:6px 0 6px 10px;border-color:transparent transparent transparent #fff;margin-left:2px}
+  .mitem-title-wrap{position:absolute;left:0;right:0;bottom:0;padding:20px 10px 10px;z-index:2;
+    background:linear-gradient(to top, rgba(10,8,6,.88), rgba(10,8,6,0));pointer-events:none}
+  .mitem-title{font-size:11.5px;font-weight:800;color:#fff;line-height:1.25;text-shadow:0 1px 3px rgba(0,0,0,.4);
+    pointer-events:auto;outline:none}
+  .mitem-title:empty:before{content:attr(data-placeholder);color:rgba(255,255,255,.55);font-weight:600}
+  .madd-wrap{width:150px;display:flex;flex-direction:column;align-items:center}
+  .madd{width:100%;aspect-ratio:9/16;border-radius:12px;border:1.5px dashed var(--line);background:transparent;
+    color:#B7B0A2;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center}
   .madd:hover,.madd.selected{border-color:var(--accent);color:var(--accent)}
   .madd.selected{border-style:solid}
-  .madd-upload{font-size:9.5px;color:var(--muted);background:none;border:none;cursor:pointer;margin-top:4px;padding:0}
-  .madd-upload:hover{color:var(--accent);text-decoration:underline}
 
   .row-add{background:transparent;border:1.5px dashed var(--line);color:var(--muted);border-radius:12px;
     padding:10px 20px;font-size:12.5px;cursor:pointer;width:100%;margin-top:2px}
@@ -131,7 +171,7 @@
   #fsmodal{position:fixed;inset:0;z-index:80;display:none;place-items:center;padding:28px;
     background:rgba(24,20,16,.82);backdrop-filter:blur(6px)}
   #fsmodal.on{display:grid}
-  .fs-frame{max-height:90vh;max-width:92vw;aspect-ratio:9/16;border-radius:14px;overflow:hidden;background:#000;
+  .fs-frame{max-height:95vh;max-width:96vw;aspect-ratio:9/16;border-radius:14px;overflow:hidden;background:#000;
     box-shadow:0 24px 70px rgba(0,0,0,.5)}
   .fs-frame iframe,.fs-frame img,.fs-frame video{width:100%;height:100%;object-fit:contain;border:0;display:block}
   .fs-close{position:fixed;top:22px;right:26px;width:42px;height:42px;border-radius:50%;
@@ -150,6 +190,14 @@
   .drive-box input{width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:9px;
     font-size:13px;color:var(--ink);background:var(--card-soft);outline:none;box-sizing:border-box}
   .drive-box input:focus{border-color:var(--accent)}
+  .add-tabs{display:flex;gap:6px;margin-bottom:14px}
+  .add-tab{flex:1;padding:8px 6px;font-size:12px;font-weight:700;color:var(--muted);background:var(--card-soft);
+    border:1px solid var(--line);border-radius:999px;cursor:pointer}
+  .add-tab:hover{color:var(--accent)}
+  .add-tab.active{background:var(--accent);border-color:var(--accent);color:#fff}
+  .add-panel{margin-bottom:12px}
+  .am-file-name{font-size:11.5px;color:var(--muted);margin-top:8px;text-align:center}
+  .am-caption{margin-top:2px}
   .drive-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:16px}
   .drive-cancel-btn{cursor:pointer;background:none;border:1px solid var(--line);color:var(--muted);
     border-radius:999px;padding:8px 18px;font-size:12.5px}
@@ -211,18 +259,39 @@
     <h1>1 · Overview &amp; Experiment Plan<button class="sec-toggle" data-section="overview" title="Collapse/expand">▾</button></h1>
     <p class="sub" contenteditable="true" data-editable-text id="overview-sub"></p>
 
-    <div class="dash-grid" id="dash-grid"></div>
+    <div class="kpi-filter" id="kpi-filter">
+      <button class="kpi-filter-btn active" data-kind="all">Tất cả</button>
+      <button class="kpi-filter-btn" data-kind="video">Video</button>
+      <button class="kpi-filter-btn" data-kind="image">Image</button>
+    </div>
+    <div class="kpi-tiles" id="kpi-tiles"></div>
+    <table class="kpi-table">
+      <thead><tr><th>Đợt</th><th>BookWise</th><th>Soulie</th><th>Tổng</th></tr></thead>
+      <tbody id="kpi-table-body"></tbody>
+    </table>
 
     <h2 style="margin-top:8px">Experiment Plan</h2>
-    <p class="sub" style="margin-bottom:12px">Mỗi hàng = 1 visual style đã test — bấm để sửa trực tiếp</p>
-    <table class="plan-table">
-      <thead><tr><th>Visual style</th><th>App</th><th>Loại</th><th>Số lượng</th><th>Đợt</th><th></th></tr></thead>
-      <tbody id="plan-table-body"></tbody>
-    </table>
-    <div class="plan-foot">
-      <button class="row-add" style="width:auto" id="plan-add-row">+ Thêm hàng</button>
-      <button class="sync-btn" id="plan-sync">↻ Đồng bộ từ dữ liệu thực nghiệm</button>
+    <p class="sub" style="margin-bottom:12px">Mỗi hàng = 1 visual style đã test — tự động cập nhật theo dữ liệu experiment bên dưới, không sửa trực tiếp được</p>
+    <div class="plan-cols">
+      <div class="plan-col">
+        <h3 class="plan-col-title bookwise">BookWise</h3>
+        <table class="plan-table">
+          <thead><tr><th>Visual style</th><th>Loại</th><th>Số lượng</th><th>Đợt</th></tr></thead>
+          <tbody id="plan-table-body-bookwise"></tbody>
+        </table>
+      </div>
+      <div class="plan-col">
+        <h3 class="plan-col-title soulie">Soulie</h3>
+        <table class="plan-table">
+          <thead><tr><th>Visual style</th><th>Loại</th><th>Số lượng</th><th>Đợt</th></tr></thead>
+          <tbody id="plan-table-body-soulie"></tbody>
+        </table>
+      </div>
     </div>
+
+    <h2 style="margin-top:28px">Highlights this week</h2>
+    <p class="sub" style="margin-bottom:12px" id="highlight-sub">Video kết quả của đợt gần nhất</p>
+    <div class="highlight-grid" id="highlight-grid"></div>
   </section>
 
   <!-- ============ PHẦN 2 — BOOKWISE ============ -->
@@ -307,9 +376,19 @@
 <div id="fsmodal"><button class="fs-close" id="fs-close">×</button><div class="fs-frame" id="fs-frame"></div></div>
 <div id="drivemodal">
   <div class="drive-box">
-    <h3>Dán link Google Drive</h3>
-    <p>Dán URL chia sẻ hoặc file ID</p>
-    <input type="text" id="drive-input" placeholder="https://drive.google.com/file/d/... ">
+    <h3>Thêm media</h3>
+    <div class="add-tabs">
+      <button class="add-tab active" id="am-tab-drive" data-tab="drive">🔗 Link Drive</button>
+      <button class="add-tab" id="am-tab-upload" data-tab="upload">⬆ Upload từ máy</button>
+    </div>
+    <div class="add-panel" id="am-panel-drive">
+      <input type="text" id="drive-input" placeholder="https://drive.google.com/file/d/... ">
+    </div>
+    <div class="add-panel" id="am-panel-upload" style="display:none">
+      <button class="drive-cancel-btn" id="am-pick-file" style="width:100%">Chọn file…</button>
+      <div class="am-file-name" id="am-file-name">Chưa chọn file nào</div>
+    </div>
+    <input type="text" id="am-caption-input" class="am-caption" placeholder="Đặt tên (tuỳ chọn)…">
     <div class="drive-actions">
       <button class="drive-cancel-btn" id="drive-cancel">Huỷ</button>
       <button class="drive-ok-btn" id="drive-ok">Thêm</button>

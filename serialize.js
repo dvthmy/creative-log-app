@@ -29,17 +29,6 @@ function getNotesMedia() {
   return db.prepare('SELECT * FROM notes_media ORDER BY sort_order, id').all().map(mediaItemOut);
 }
 
-function getPlanRows() {
-  return db.prepare('SELECT * FROM plan_rows ORDER BY sort_order, id').all().map(r => ({
-    id: r.id,
-    visualStyle: r.visual_style,
-    app: r.app,
-    mediaKind: r.media_kind,
-    count: r.count,
-    groups: r.groups
-  }));
-}
-
 function getSwState() {
   const rows = db.prepare('SELECT * FROM sw_state').all();
   const out = {};
@@ -87,10 +76,10 @@ function getFullState() {
   return {
     rows: { bookwise: getRowsForApp('bookwise'), soulie: getRowsForApp('soulie') },
     notesMedia: getNotesMedia(),
-    planRows: getPlanRows(),
+    planRows: computePlanRows(),
     swState: getSwState(),
     uiState: getUiState()
   };
 }
 
-module.exports = { getRowsForApp, getNotesMedia, getPlanRows, getSwState, getUiState, computePlanRows, getFullState };
+module.exports = { getRowsForApp, getNotesMedia, getSwState, getUiState, computePlanRows, getFullState };

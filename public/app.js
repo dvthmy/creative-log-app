@@ -33,11 +33,22 @@
   function mediaUrl(item){ return item.mediaId ? '/uploads/' + item.mediaId : null; }
   function openFullscreen(item){
     fsFrame.innerHTML = '';
+    fsFrame.style.aspectRatio = '9/16'; // mặc định — sẽ khớp lại đúng tỉ lệ thật nếu biết được
     if(item.mediaId){
       const url = mediaUrl(item);
-      const el = (item.mediaType||'').startsWith('video/') ? document.createElement('video') : document.createElement('img');
+      const isVideo = (item.mediaType||'').startsWith('video/');
+      const el = document.createElement(isVideo ? 'video' : 'img');
       el.src = url;
-      if(el.tagName === 'VIDEO'){ el.controls = true; el.autoplay = true; el.loop = true; el.playsInline = true; }
+      if(isVideo){
+        el.controls = true; el.autoplay = true; el.loop = true; el.playsInline = true;
+        el.addEventListener('loadedmetadata', ()=>{
+          if(el.videoWidth && el.videoHeight) fsFrame.style.aspectRatio = el.videoWidth + '/' + el.videoHeight;
+        });
+      }else{
+        el.addEventListener('load', ()=>{
+          if(el.naturalWidth && el.naturalHeight) fsFrame.style.aspectRatio = el.naturalWidth + '/' + el.naturalHeight;
+        });
+      }
       fsFrame.appendChild(el);
     }else if(item.driveId){
       const ifr = document.createElement('iframe');
@@ -53,29 +64,64 @@
   document.addEventListener('keydown', e=>{ if(e.key === 'Escape') closeFullscreen(); });
 
   /* =====================================================================
-     DRIVE-LINK MODAL — styled replacement for prompt()
+     ADD MEDIA MODAL — pick Drive link or device upload, plus a name, in one place
      ===================================================================== */
-  const driveModal = document.getElementById('drivemodal');
+  const addMediaModal = document.getElementById('drivemodal');
   const driveInput = document.getElementById('drive-input');
-  let driveResolve = null;
-  function openDriveModal(){
+  const amCaptionInput = document.getElementById('am-caption-input');
+  const amTabDrive = document.getElementById('am-tab-drive');
+  const amTabUpload = document.getElementById('am-tab-upload');
+  const amPanelDrive = document.getElementById('am-panel-drive');
+  const amPanelUpload = document.getElementById('am-panel-upload');
+  const amPickFileBtn = document.getElementById('am-pick-file');
+  const amFileNameEl = document.getElementById('am-file-name');
+  const amFileInput = document.getElementById('madd-file-input');
+  let amMode = 'drive';
+  let amFile = null;
+  let amResolve = null;
+
+  function setAmMode(mode){
+    amMode = mode;
+    amTabDrive.classList.toggle('active', mode === 'drive');
+    amTabUpload.classList.toggle('active', mode === 'upload');
+    amPanelDrive.style.display = mode === 'drive' ? '' : 'none';
+    amPanelUpload.style.display = mode === 'upload' ? '' : 'none';
+  }
+  amTabDrive.addEventListener('click', ()=>setAmMode('drive'));
+  amTabUpload.addEventListener('click', ()=>setAmMode('upload'));
+  amPickFileBtn.addEventListener('click', ()=>amFileInput.click());
+  amFileInput.addEventListener('change', function(){
+    amFile = this.files[0] || null;
+    amFileNameEl.textContent = amFile ? amFile.name : 'Chưa chọn file nào';
+    this.value = '';
+  });
+
+  function openAddMediaModal(){
     return new Promise(resolve=>{
-      driveResolve = resolve;
+      amResolve = resolve;
       driveInput.value = '';
-      driveModal.classList.add('on');
+      amCaptionInput.value = '';
+      amFile = null;
+      amFileNameEl.textContent = 'Chưa chọn file nào';
+      setAmMode('drive');
+      addMediaModal.classList.add('on');
       setTimeout(()=>driveInput.focus(), 0);
     });
   }
-  function closeDriveModal(result){
-    driveModal.classList.remove('on');
-    if(driveResolve){ driveResolve(result); driveResolve = null; }
+  function closeAddMediaModal(result){
+    addMediaModal.classList.remove('on');
+    if(amResolve){ amResolve(result); amResolve = null; }
   }
-  document.getElementById('drive-ok').addEventListener('click', ()=>closeDriveModal(driveInput.value));
-  document.getElementById('drive-cancel').addEventListener('click', ()=>closeDriveModal(null));
-  driveModal.addEventListener('click', e=>{ if(e.target === driveModal) closeDriveModal(null); });
+  document.getElementById('drive-ok').addEventListener('click', ()=>{
+    const caption = amCaptionInput.value.trim();
+    if(amMode === 'drive') closeAddMediaModal({ mode:'drive', driveInput: driveInput.value, caption });
+    else closeAddMediaModal({ mode:'upload', file: amFile, caption });
+  });
+  document.getElementById('drive-cancel').addEventListener('click', ()=>closeAddMediaModal(null));
+  addMediaModal.addEventListener('click', e=>{ if(e.target === addMediaModal) closeAddMediaModal(null); });
   driveInput.addEventListener('keydown', e=>{
-    if(e.key === 'Enter') closeDriveModal(driveInput.value);
-    if(e.key === 'Escape') closeDriveModal(null);
+    if(e.key === 'Enter') document.getElementById('drive-ok').click();
+    if(e.key === 'Escape') closeAddMediaModal(null);
   });
 
   /* =====================================================================
@@ -86,7 +132,6 @@
        { kind:'notes' }                                    -> /api/notes/media , /api/notes/media/:id
      ===================================================================== */
   let selectedAdd = null; // { items, target, rerender }
-  let uploadTarget = null;
 
   function endpointsFor(target){
     if(target.kind === 'row'){
@@ -100,7 +145,7 @@
     el.classList.add('selected');
     selectedAdd = { items, target, rerender };
   }
-  async function addMediaFile(items, target, file, rerender){
+  async function addMediaFile(items, target, file, rerender, caption){
     if(file.size > 200*1048576){ toast('⚠️ File over 200MB — nén lại trước'); return; }
     const ep = endpointsFor(target);
     const fd = new FormData();
@@ -108,6 +153,10 @@
     if(target.kind === 'row') fd.append('slot', target.slot);
     try{
       const item = await api('POST', ep.add, fd);
+      if(caption){
+        item.caption = caption;
+        try{ await api('PATCH', ep.item(item.id), { caption }); }catch(e){}
+      }
       items.push(item);
       rerender();
       toast('✓ Đã thêm ' + (file.type.startsWith('video/') ? 'video' : 'ảnh'));
@@ -123,22 +172,21 @@
     if(/^[a-zA-Z0-9_-]{10,}$/.test(input)) return input;
     return null;
   }
-  async function addDriveMedia(items, target, driveId, rerender){
+  async function addDriveMedia(items, target, driveId, rerender, caption){
     const ep = endpointsFor(target);
     const body = { driveId };
     if(target.kind === 'row') body.slot = target.slot;
     try{
       const item = await api('POST', ep.add, body);
+      if(caption){
+        item.caption = caption;
+        try{ await api('PATCH', ep.item(item.id), { caption }); }catch(e){}
+      }
       items.push(item);
       rerender();
       toast('✓ Đã thêm video Drive');
     }catch(e){ toast('⚠️ Thêm thất bại: ' + e.message); }
   }
-  document.getElementById('madd-file-input').addEventListener('change', function(){
-    const f = this.files[0];
-    if(f && uploadTarget) addMediaFile(uploadTarget.items, uploadTarget.target, f, uploadTarget.rerender);
-    this.value = ''; uploadTarget = null;
-  });
   document.addEventListener('paste', e=>{
     if(!selectedAdd) return;
     const item = [...e.clipboardData.items].find(i=>i.type.startsWith('image/')||i.type.startsWith('video/'));
@@ -150,16 +198,23 @@
   function renderMediaItem(item, items, idx, target, rerender){
     const wrap = document.createElement('div'); wrap.className = 'mitem-wrap';
     const el = document.createElement('div'); el.className = 'mitem';
+    let isVideo = false;
     if(item.mediaId){
-      const tag = (item.mediaType||'').startsWith('video/') ? 'video' : 'img';
+      isVideo = (item.mediaType||'').startsWith('video/');
+      const tag = isVideo ? 'video' : 'img';
       const media = document.createElement(tag); media.src = mediaUrl(item);
       if(tag==='video'){ media.muted = true; media.loop = true; media.playsInline = true; }
       el.appendChild(media);
     }else if(item.driveId){
+      isVideo = true; // các link Drive trong app này luôn là video demo
       const ifr = document.createElement('iframe');
       ifr.src = 'https://drive.google.com/file/d/'+item.driveId+'/preview';
       ifr.loading = 'lazy'; ifr.setAttribute('allow','autoplay');
       el.appendChild(ifr);
+    }
+    if(isVideo){
+      const play = document.createElement('div'); play.className = 'mitem-play';
+      el.appendChild(play);
     }
     el.addEventListener('click', ()=>openFullscreen(item));
     const tools = document.createElement('div'); tools.className = 'mitem-tools';
@@ -174,9 +229,10 @@
       items.splice(idx,1); rerender();
     };
     tools.appendChild(exp); tools.appendChild(rm);
-    wrap.appendChild(el); wrap.appendChild(tools);
-    const cap = document.createElement('div'); cap.className = 'mitem-cap'; cap.contentEditable = true;
+    const titleWrap = document.createElement('div'); titleWrap.className = 'mitem-title-wrap';
+    const cap = document.createElement('div'); cap.className = 'mitem-title'; cap.contentEditable = true;
     cap.setAttribute('data-placeholder','—'); cap.textContent = item.caption || '';
+    cap.addEventListener('click', e=>e.stopPropagation());
     cap.addEventListener('blur', async ()=>{
       const val = cap.textContent.trim();
       if(val === (item.caption||'')) return;
@@ -185,7 +241,10 @@
       try{ await api('PATCH', ep.item(item.id), { caption: val }); }
       catch(err){ toast('⚠️ Lưu caption thất bại: ' + err.message); }
     });
-    wrap.appendChild(cap);
+    titleWrap.appendChild(cap);
+    el.appendChild(titleWrap);
+    el.appendChild(tools);
+    wrap.appendChild(el);
     return wrap;
   }
   function renderMediaStack(host, items, target, rerender){
@@ -193,14 +252,19 @@
     items.forEach((item, idx)=> host.appendChild(renderMediaItem(item, items, idx, target, rerender)));
     const addWrap = document.createElement('div'); addWrap.className = 'madd-wrap';
     const add = document.createElement('div'); add.className = 'madd'; add.textContent = '+';
-    add.title = 'Click để dán link Google Drive, hoặc Cmd/Ctrl+V để dán ảnh/video, hoặc kéo-thả file';
+    add.title = 'Click để thêm — hoặc Cmd/Ctrl+V để dán, kéo-thả file';
     add.addEventListener('click', async ()=>{
       selectAddTile(add, items, target, rerender);
-      const input = await openDriveModal();
-      if(!input) return;
-      const driveId = extractDriveId(input);
-      if(!driveId){ toast('⚠️ Không nhận diện được link/ID Drive'); return; }
-      await addDriveMedia(items, target, driveId, rerender);
+      const result = await openAddMediaModal();
+      if(!result) return;
+      if(result.mode === 'drive'){
+        const driveId = extractDriveId(result.driveInput);
+        if(!driveId){ toast('⚠️ Không nhận diện được link/ID Drive'); return; }
+        await addDriveMedia(items, target, driveId, rerender, result.caption);
+      }else{
+        if(!result.file){ toast('⚠️ Chưa chọn file nào'); return; }
+        await addMediaFile(items, target, result.file, rerender, result.caption);
+      }
     });
     add.addEventListener('dragover', e=>{ e.preventDefault(); add.classList.add('selected'); });
     add.addEventListener('drop', e=>{
@@ -209,9 +273,6 @@
       if(f) addMediaFile(items, target, f, rerender);
     });
     addWrap.appendChild(add);
-    const upBtn = document.createElement('button'); upBtn.className = 'madd-upload'; upBtn.textContent = 'Upload';
-    upBtn.onclick = ()=>{ uploadTarget = { items, target, rerender }; document.getElementById('madd-file-input').click(); };
-    addWrap.appendChild(upBtn);
     host.appendChild(addWrap);
   }
 
@@ -222,7 +283,6 @@
   let bookwiseRowsState = [];
   let soulieRowsState = [];
   let notesGalState = [];
-  let planTableState = [];
   let swState = {};
   let uiState = { collapsed:{}, texts:{}, groupCollapsed:{} };
 
@@ -247,14 +307,14 @@
       catch(e){ toast('⚠️ Lưu thất bại: ' + e.message); }
     }
 
-    const col1 = document.createElement('div');
+    const col1 = document.createElement('div'); col1.className = 'exp-block';
     const head = document.createElement('div'); head.className = 'exp-head';
     const kindBtn = document.createElement('button'); kindBtn.className = 'kind-toggle';
     kindBtn.textContent = row.mediaKind === 'image' ? 'Image' : 'Video';
     kindBtn.onclick = ()=>{
       row.mediaKind = row.mediaKind === 'image' ? 'video' : 'image';
       kindBtn.textContent = row.mediaKind === 'image' ? 'Image' : 'Video';
-      patchRow({ mediaKind: row.mediaKind }); renderSummary();
+      patchRow({ mediaKind: row.mediaKind }); renderSummary(); renderHighlightGrid();
     };
     head.appendChild(kindBtn);
     const delBtn = document.createElement('button'); delBtn.className = 'kind-toggle'; delBtn.textContent = '✕ Xoá dòng';
@@ -266,14 +326,14 @@
       const arr = appKey === 'soulie' ? soulieRowsState : bookwiseRowsState;
       const idx = arr.findIndex(r=>r.id === row.id);
       if(idx !== -1) arr.splice(idx, 1);
-      renderAllRows(); renderSummary();
+      renderAllRows(); renderSummary(); renderHighlightGrid();
     };
     head.appendChild(delBtn);
     col1.appendChild(head);
     const nameEl = document.createElement('div'); nameEl.className = 'exp-name'; nameEl.contentEditable = true;
     nameEl.setAttribute('data-placeholder','Tên visual style…');
     nameEl.textContent = row.visualStyle || '';
-    nameEl.addEventListener('blur', ()=>{ row.visualStyle = nameEl.textContent.trim(); patchRow({ visualStyle: row.visualStyle }); renderSummary(); });
+    nameEl.addEventListener('blur', ()=>{ row.visualStyle = nameEl.textContent.trim(); patchRow({ visualStyle: row.visualStyle }); renderSummary(); renderHighlightGrid(); });
     col1.appendChild(nameEl);
     if(row.title){
       const t = document.createElement('div'); t.className = 'row-title'; t.textContent = row.title + (row.dur ? ' · '+row.dur : '');
@@ -285,28 +345,28 @@
     inputDesc.addEventListener('blur', ()=>{ row.inputDesc = inputDesc.innerHTML.trim(); patchRow({ inputDesc: row.inputDesc }); });
     col1.appendChild(inputDesc);
 
-    const col2 = document.createElement('div');
+    const col2 = document.createElement('div'); col2.className = 'exp-block';
     col2.innerHTML = '<div class="col-label">Reference</div>';
-    const refHost = document.createElement('div'); refHost.className = 'mstack';
+    const refHost = document.createElement('div'); refHost.className = 'mstack mstack-row';
     col2.appendChild(refHost);
     const refTarget = { kind:'row', rowId: row.id, slot:'reference' };
     const rerenderRef = ()=>renderMediaStack(refHost, row.reference, refTarget, rerenderRef);
     rerenderRef();
 
-    const col3 = document.createElement('div');
+    const col3 = document.createElement('div'); col3.className = 'exp-block';
     col3.innerHTML = '<div class="col-label">Kết quả của Tool</div>';
     const toolChip = document.createElement('div'); toolChip.className = 'tool-name'; toolChip.contentEditable = true;
     toolChip.setAttribute('data-placeholder','Tên tool…');
     toolChip.textContent = row.tool || '';
     toolChip.addEventListener('blur', ()=>{ row.tool = toolChip.textContent.trim(); patchRow({ tool: row.tool }); });
     col3.appendChild(toolChip);
-    const resHost = document.createElement('div'); resHost.className = 'mstack';
+    const resHost = document.createElement('div'); resHost.className = 'mstack mstack-row';
     col3.appendChild(resHost);
     const resTarget = { kind:'row', rowId: row.id, slot:'result' };
-    const rerenderRes = ()=>renderMediaStack(resHost, row.result, resTarget, rerenderRes);
+    const rerenderRes = ()=>{ renderMediaStack(resHost, row.result, resTarget, rerenderRes); renderHighlightGrid(); };
     rerenderRes();
 
-    const col4 = document.createElement('div');
+    const col4 = document.createElement('div'); col4.className = 'exp-block';
     col4.innerHTML = '<div class="col-label">Nhận xét</div>';
     const comment = document.createElement('div'); comment.className = 'row-comment'; comment.contentEditable = true;
     comment.setAttribute('data-placeholder','Thêm nhận xét…');
@@ -353,105 +413,182 @@
   /* =====================================================================
      OVERVIEW DASHBOARD + EXPERIMENT PLAN TABLE
      ===================================================================== */
-  function groupCount(rows){
+  function computePlanRows(rows){
     const map = new Map();
     rows.forEach(r=>{
-      const key = (r.visualStyle || '(chưa đặt tên)');
-      map.set(key, (map.get(key)||0) + 1);
+      const key = (r.visualStyle || '(chưa đặt tên)') + '|' + r.mediaKind;
+      if(!map.has(key)) map.set(key, { visualStyle: r.visualStyle || '(chưa đặt tên)', mediaKind: r.mediaKind, count: 0, groups: new Set() });
+      const e = map.get(key);
+      e.count++; e.groups.add(r.dateGroup);
     });
-    return [...map.entries()].sort((a,b)=>b[1]-a[1]).map(([name,count])=>({name,count}));
+    return [...map.values()].map(e=>({
+      visualStyle: e.visualStyle, mediaKind: e.mediaKind, count: e.count,
+      groups: [...e.groups].map(g=>g==='1-14'?'01–14/07':g==='15-28'?'15–28/07':g).join(', ')
+    }));
   }
 
-  async function savePlanTable(){
-    try{ await api('PUT', '/api/plan-rows', { rows: planTableState }); }
-    catch(e){ toast('⚠️ Lưu Experiment Plan thất bại: ' + e.message); }
+  const WEEK_GROUPS = [['1-14','01–14/07'], ['15-28','15–28/07']];
+  let kpiFilter = 'all'; // 'all' | 'video' | 'image'
+  function matchesKpiFilter(row){ return kpiFilter === 'all' || row.mediaKind === kpiFilter; }
+  function kpiTile(label, big, sub, cls){
+    const el = document.createElement('div'); el.className = 'kpi-tile' + (cls ? ' ' + cls : '');
+    const lbl = document.createElement('div'); lbl.className = 'lbl'; lbl.textContent = label;
+    const bigEl = document.createElement('div'); bigEl.className = 'big'; bigEl.textContent = big;
+    const subEl = document.createElement('div'); subEl.className = 'sub'; subEl.textContent = sub;
+    el.appendChild(lbl); el.appendChild(bigEl); el.appendChild(subEl);
+    return el;
   }
-  async function resyncPlanTable(){
-    try{
-      const { rows } = await api('POST', '/api/plan-rows/resync');
-      planTableState = rows;
-      renderSummary();
-      toast('✓ Đã đồng bộ');
-    }catch(e){ toast('⚠️ Đồng bộ thất bại: ' + e.message); }
+  function kpiTableRow(label, bw, sl, total){
+    const tr = document.createElement('tr');
+    [label, bw, sl, total].forEach(v=>{ const td = document.createElement('td'); td.textContent = v; tr.appendChild(td); });
+    return tr;
   }
+  function renderKpiSection(){
+    const perWeek = WEEK_GROUPS.map(([key, label])=>({
+      label,
+      bw: bookwiseRowsState.filter(r=>r.dateGroup === key && matchesKpiFilter(r)).length,
+      sl: soulieRowsState.filter(r=>r.dateGroup === key && matchesKpiFilter(r)).length
+    }));
+    const bwTotal = perWeek.reduce((s,w)=>s+w.bw, 0);
+    const slTotal = perWeek.reduce((s,w)=>s+w.sl, 0);
+    const total = bwTotal + slTotal;
 
-  function renderBucketCard(title, rows){
-    const chips = groupCount(rows);
-    const card = document.createElement('div'); card.className = 'dash-card';
-    card.innerHTML = '<div class="lbl">'+title+'</div><div class="big">'+rows.length+'</div>';
-    const list = document.createElement('div');
-    if(!chips.length){
-      list.className = 'empty-note'; list.textContent = 'Chưa có dữ liệu';
-    }else{
-      list.className = 'chip-list';
-      chips.forEach(c=>{
-        const chip = document.createElement('div'); chip.className = 'style-chip';
-        chip.innerHTML = '<b>'+c.count+'</b><span>'+c.name+'</span>';
-        list.appendChild(chip);
-      });
-    }
-    card.appendChild(list);
-    return card;
-  }
-  function planCellText(td, getVal, setVal){
-    td.contentEditable = true; td.textContent = getVal();
-    td.addEventListener('blur', ()=>{ setVal(td.textContent.trim()); savePlanTable(); });
-  }
-  function renderPlanTable(){
-    const body = document.getElementById('plan-table-body');
+    const tiles = document.getElementById('kpi-tiles');
+    tiles.innerHTML = '';
+    tiles.appendChild(kpiTile('Tổng creative', total, 'BookWise ' + bwTotal + ' · Soulie ' + slTotal, 'total'));
+    tiles.appendChild(kpiTile('BookWise', bwTotal, perWeek.map(w=>w.bw).join(' → ') + ' qua ' + perWeek.length + ' đợt', 'bookwise'));
+    tiles.appendChild(kpiTile('Soulie', slTotal, perWeek.map(w=>w.sl).join(' → ') + ' qua ' + perWeek.length + ' đợt', 'soulie'));
+
+    const body = document.getElementById('kpi-table-body');
     body.innerHTML = '';
-    if(!planTableState.length){
+    perWeek.forEach(w=> body.appendChild(kpiTableRow(w.label, w.bw, w.sl, w.bw + w.sl)));
+    body.appendChild(kpiTableRow('Tổng', bwTotal, slTotal, total));
+  }
+  document.querySelectorAll('.kpi-filter-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('.kpi-filter-btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      kpiFilter = btn.dataset.kind;
+      renderKpiSection();
+    });
+  });
+  const planExpanded = { bookwise:false, soulie:false };
+  const PLAN_TABLE_CAP = 10;
+  function renderPlanColumn(appKey, rows, bodyId){
+    const body = document.getElementById(bodyId);
+    body.innerHTML = '';
+    const planRows = computePlanRows(rows);
+    if(!planRows.length){
       const tr = document.createElement('tr');
-      tr.innerHTML = '<td colspan="6" style="text-align:center;color:#B7B0A2;font-style:italic">Chưa có thực nghiệm nào</td>';
+      tr.innerHTML = '<td colspan="4" style="text-align:center;color:#B7B0A2;font-style:italic">Chưa có thực nghiệm nào</td>';
       body.appendChild(tr);
       return;
     }
-    planTableState.forEach((e, idx)=>{
+    const recentFirst = planRows.filter(e=>(e.groups||'').includes('15–28/07'));
+    const rest = planRows.filter(e=>!(e.groups||'').includes('15–28/07'));
+    const sorted = recentFirst.concat(rest);
+    const visible = planExpanded[appKey] ? sorted : sorted.slice(0, PLAN_TABLE_CAP);
+    visible.forEach(e=>{
       const tr = document.createElement('tr');
-      const tdStyle = document.createElement('td');
-      planCellText(tdStyle, ()=>e.visualStyle, v=>e.visualStyle=v);
-      const tdApp = document.createElement('td'); tdApp.className = 'app-cell';
-      const appBadge = document.createElement('button'); appBadge.className = 'badge ' + (e.app==='Soulie'?'soulie':'bookwise');
-      appBadge.style.cursor = 'pointer'; appBadge.style.border = 'none';
-      appBadge.textContent = e.app;
-      appBadge.onclick = ()=>{ e.app = e.app === 'Soulie' ? 'BookWise' : 'Soulie'; savePlanTable(); renderPlanTable(); };
-      tdApp.appendChild(appBadge);
+      const tdStyle = document.createElement('td'); tdStyle.textContent = e.visualStyle;
       const tdKind = document.createElement('td'); tdKind.className = 'kind-cell';
-      const kindBadge = document.createElement('button'); kindBadge.className = 'badge kind';
-      kindBadge.style.cursor = 'pointer'; kindBadge.style.border = 'none';
+      const kindBadge = document.createElement('span'); kindBadge.className = 'badge kind';
       kindBadge.textContent = e.mediaKind === 'image' ? 'Image' : 'Video';
-      kindBadge.onclick = ()=>{ e.mediaKind = e.mediaKind === 'image' ? 'video' : 'image'; savePlanTable(); renderPlanTable(); };
       tdKind.appendChild(kindBadge);
-      const tdCount = document.createElement('td'); tdCount.className = 'count';
-      planCellText(tdCount, ()=>e.count, v=>e.count=parseInt(v)||0);
-      const tdGroups = document.createElement('td');
-      planCellText(tdGroups, ()=>e.groups, v=>e.groups=v);
-      const tdDel = document.createElement('td');
-      const del = document.createElement('button'); del.className = 'row-del'; del.textContent = '✕';
-      del.onclick = ()=>{ planTableState.splice(idx,1); savePlanTable(); renderPlanTable(); };
-      tdDel.appendChild(del);
-      tr.appendChild(tdStyle); tr.appendChild(tdApp); tr.appendChild(tdKind); tr.appendChild(tdCount); tr.appendChild(tdGroups); tr.appendChild(tdDel);
+      const tdCount = document.createElement('td'); tdCount.className = 'count'; tdCount.textContent = e.count;
+      const tdGroups = document.createElement('td'); tdGroups.textContent = e.groups;
+      tr.appendChild(tdStyle); tr.appendChild(tdKind); tr.appendChild(tdCount); tr.appendChild(tdGroups);
       body.appendChild(tr);
     });
+    if(sorted.length > PLAN_TABLE_CAP){
+      const tr = document.createElement('tr');
+      const td = document.createElement('td'); td.colSpan = 4; td.style.textAlign = 'center';
+      const btn = document.createElement('button'); btn.className = 'sync-btn';
+      btn.textContent = planExpanded[appKey] ? '↑ Thu gọn' : '↓ Xem thêm (' + (sorted.length - PLAN_TABLE_CAP) + ' còn lại)';
+      btn.onclick = ()=>{ planExpanded[appKey] = !planExpanded[appKey]; renderPlanColumn(appKey, rows, bodyId); };
+      td.appendChild(btn); tr.appendChild(td); body.appendChild(tr);
+    }
   }
-  document.getElementById('plan-add-row').addEventListener('click', ()=>{
-    planTableState.push({ visualStyle:'', app:'Soulie', mediaKind:'video', count:0, groups:'' });
-    savePlanTable(); renderPlanTable();
-  });
-  document.getElementById('plan-sync').addEventListener('click', resyncPlanTable);
+  function renderPlanTable(){
+    renderPlanColumn('bookwise', bookwiseRowsState, 'plan-table-body-bookwise');
+    renderPlanColumn('soulie', soulieRowsState, 'plan-table-body-soulie');
+  }
 
   function renderSummary(){
-    const dash = document.getElementById('dash-grid');
-    dash.innerHTML = '';
-    const total = soulieRowsState.length + bookwiseRowsState.length;
-    const totalCard = document.createElement('div'); totalCard.className = 'dash-card';
-    totalCard.innerHTML = '<div class="lbl">Number of creative produced</div><div class="big">'+total+'</div>';
-    dash.appendChild(totalCard);
-    dash.appendChild(renderBucketCard('Soulie · Video', soulieRowsState.filter(r=>r.mediaKind==='video')));
-    dash.appendChild(renderBucketCard('Soulie · Image', soulieRowsState.filter(r=>r.mediaKind==='image')));
-    dash.appendChild(renderBucketCard('BookWise · Video', bookwiseRowsState.filter(r=>r.mediaKind==='video')));
-    dash.appendChild(renderBucketCard('BookWise · Image', bookwiseRowsState.filter(r=>r.mediaKind==='image')));
+    renderKpiSection();
     renderPlanTable();
+  }
+
+  /* =====================================================================
+     HIGHLIGHTS THIS WEEK — grid of latest-batch result videos, each
+     playing/pausing itself as it scrolls in/out of view
+     ===================================================================== */
+  const HIGHLIGHT_DATE_GROUP = '15-28'; // batch gần nhất, giống quy ước 2 đợt cứng của app
+  const HIGHLIGHT_MAX = 24;
+  function buildHighlightList(){
+    const list = [];
+    [ ['Soulie','soulie', soulieRowsState], ['BookWise','bookwise', bookwiseRowsState] ].forEach(([appLabel, appCls, arr])=>{
+      arr.filter(r=>r.dateGroup === HIGHLIGHT_DATE_GROUP && r.mediaKind === 'video').forEach(r=>{
+        (r.result||[]).forEach(m=>{
+          const label = r.visualStyle || r.tool || '(chưa đặt tên)';
+          if(m.mediaId) list.push({ kind:'upload', url: mediaUrl(m), appLabel, appCls, label });
+          else if(m.driveId) list.push({ kind:'drive', driveId: m.driveId, appLabel, appCls, label });
+        });
+      });
+    });
+    return list;
+  }
+  let hlObserver = null;
+  function renderHighlightGrid(){
+    const host = document.getElementById('highlight-grid');
+    const sub = document.getElementById('highlight-sub');
+    host.innerHTML = '';
+    if(hlObserver) hlObserver.disconnect();
+    const full = buildHighlightList();
+    const list = full.slice(0, HIGHLIGHT_MAX);
+    sub.textContent = full.length > HIGHLIGHT_MAX
+      ? 'Video kết quả của đợt gần nhất (đang hiện ' + HIGHLIGHT_MAX + '/' + full.length + ')'
+      : 'Video kết quả của đợt gần nhất';
+    if(!list.length){
+      host.className = 'highlight-grid empty-note';
+      host.textContent = 'Chưa có video nào trong đợt gần nhất';
+      return;
+    }
+    host.className = 'highlight-grid';
+    hlObserver = new IntersectionObserver(entries=>{
+      entries.forEach(entry=>{
+        const card = entry.target;
+        if(card.dataset.kind === 'upload'){
+          const video = card.querySelector('video');
+          if(!video) return;
+          if(entry.isIntersecting) video.play().catch(()=>{});
+          else video.pause();
+        }else if(entry.isIntersecting && !card.dataset.loaded){
+          const ifr = card.querySelector('iframe');
+          if(ifr){ ifr.src = 'https://drive.google.com/file/d/'+card.dataset.driveId+'/preview'; card.dataset.loaded = '1'; }
+        }
+      });
+    }, { threshold: 0.5 });
+    list.forEach(item=>{
+      const card = document.createElement('div'); card.className = 'hl-card'; card.dataset.kind = item.kind;
+      if(item.kind === 'drive') card.dataset.driveId = item.driveId;
+      if(item.kind === 'upload'){
+        const video = document.createElement('video');
+        video.muted = true; video.loop = true; video.playsInline = true; video.src = item.url;
+        card.appendChild(video);
+      }else{
+        const ifr = document.createElement('iframe');
+        ifr.loading = 'lazy'; ifr.setAttribute('allow','autoplay');
+        card.appendChild(ifr);
+      }
+      const badge = document.createElement('div'); badge.className = 'hl-badge ' + item.appCls; badge.textContent = item.appLabel;
+      const titleWrap = document.createElement('div'); titleWrap.className = 'hl-title-wrap';
+      const title = document.createElement('div'); title.className = 'hl-title'; title.textContent = item.label;
+      titleWrap.appendChild(title);
+      card.appendChild(badge); card.appendChild(titleWrap);
+      host.appendChild(card);
+      hlObserver.observe(card);
+    });
   }
 
   /* =====================================================================
@@ -551,7 +688,6 @@
       bookwiseRowsState = state.rows.bookwise;
       soulieRowsState = state.rows.soulie;
       notesGalState = state.notesMedia;
-      planTableState = state.planRows;
       swState = state.swState;
       uiState = { collapsed: state.uiState.collapsed || {}, texts: state.uiState.texts || {}, groupCollapsed: state.uiState.groupCollapsed || {} };
     }catch(e){
@@ -560,6 +696,7 @@
     }
     renderAllRows();
     renderSummary();
+    renderHighlightGrid();
     renderNotesStack();
     applySWState();
     applyUIState();

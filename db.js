@@ -42,16 +42,6 @@ db.exec(`
     sort_order INTEGER NOT NULL DEFAULT 0
   );
 
-  CREATE TABLE IF NOT EXISTS plan_rows (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    visual_style TEXT DEFAULT '',
-    app TEXT DEFAULT 'Soulie',
-    media_kind TEXT DEFAULT 'video',
-    count INTEGER DEFAULT 0,
-    groups TEXT DEFAULT '',
-    sort_order INTEGER NOT NULL DEFAULT 0
-  );
-
   CREATE TABLE IF NOT EXISTS sw_state (
     group_key TEXT PRIMARY KEY,
     good_html TEXT DEFAULT '',

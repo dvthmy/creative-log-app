@@ -6,7 +6,6 @@ const { UPLOAD_DIR } = require('./upload');
 const rowsRouter = require('./routes/rows');
 const rowMediaRouter = require('./routes/rowMedia');
 const notesRouter = require('./routes/notes');
-const planRouter = require('./routes/plan');
 const swRouter = require('./routes/sw');
 const uiRouter = require('./routes/ui');
 
@@ -18,7 +17,6 @@ app.get('/api/state', (req, res) => res.json(getFullState()));
 app.use('/api/rows', rowsRouter);
 app.use('/api/row-media', rowMediaRouter);
 app.use('/api/notes', notesRouter);
-app.use('/api/plan-rows', planRouter);
 app.use('/api/sw', swRouter);
 app.use('/api/ui', uiRouter);
 
