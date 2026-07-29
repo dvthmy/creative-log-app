@@ -254,8 +254,6 @@
   }
   function renderMediaStack(host, items, target, rerender, roleLabel){
     host.innerHTML = '';
-    const tileSize = items.length === 1 ? 260 : items.length === 2 ? 210 : items.length === 3 ? 170 : 150;
-    host.style.setProperty('--tile-size', tileSize + 'px');
     items.forEach((item, idx)=> host.appendChild(renderMediaItem(item, items, idx, target, rerender, roleLabel)));
     const addWrap = document.createElement('div'); addWrap.className = 'madd-wrap';
     const add = document.createElement('div'); add.className = 'madd'; add.textContent = '+';
