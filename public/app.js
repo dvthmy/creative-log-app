@@ -195,9 +195,14 @@
     addMediaFile(selectedAdd.items, selectedAdd.target, item.getAsFile(), selectedAdd.rerender);
   });
 
-  function renderMediaItem(item, items, idx, target, rerender){
+  function renderMediaItem(item, items, idx, target, rerender, roleLabel){
     const wrap = document.createElement('div'); wrap.className = 'mitem-wrap';
     const el = document.createElement('div'); el.className = 'mitem';
+    if(roleLabel){
+      const role = document.createElement('div'); role.className = 'mitem-role ' + (roleLabel === 'REF' ? 'ref' : 'out');
+      role.textContent = roleLabel;
+      el.appendChild(role);
+    }
     let isVideo = false;
     if(item.mediaId){
       isVideo = (item.mediaType||'').startsWith('video/');
@@ -247,11 +252,11 @@
     wrap.appendChild(el);
     return wrap;
   }
-  function renderMediaStack(host, items, target, rerender){
+  function renderMediaStack(host, items, target, rerender, roleLabel){
     host.innerHTML = '';
     const tileSize = items.length === 1 ? 260 : items.length === 2 ? 210 : items.length === 3 ? 170 : 150;
     host.style.setProperty('--tile-size', tileSize + 'px');
-    items.forEach((item, idx)=> host.appendChild(renderMediaItem(item, items, idx, target, rerender)));
+    items.forEach((item, idx)=> host.appendChild(renderMediaItem(item, items, idx, target, rerender, roleLabel)));
     const addWrap = document.createElement('div'); addWrap.className = 'madd-wrap';
     const add = document.createElement('div'); add.className = 'madd'; add.textContent = '+';
     add.title = 'Click để thêm — hoặc Cmd/Ctrl+V để dán, kéo-thả file';
@@ -350,13 +355,21 @@
     col1.appendChild(inputDesc);
 
     const mediaCols = document.createElement('div'); mediaCols.className = 'exp-block exp-media-cols';
+    function updateColBalance(){
+      const n = row.reference.length;
+      // Ngân sách bề rộng cột Reference tách biệt với kích thước tile hiển thị (260/210/170/150px) —
+      // để Reference ít/trống thì nhường phần lớn không gian cho Kết quả, dư thì tự cuộn ngang.
+      const slots = n === 0 ? 1 : Math.min(n, 3) + 1;
+      const refWidth = slots * 180 + (slots - 1) * 14;
+      mediaCols.style.gridTemplateColumns = refWidth + 'px 1fr';
+    }
 
     const col2 = document.createElement('div');
     col2.innerHTML = '<div class="col-label">Reference</div>';
     const refHost = document.createElement('div'); refHost.className = 'mstack mstack-row';
     col2.appendChild(refHost);
     const refTarget = { kind:'row', rowId: row.id, slot:'reference' };
-    const rerenderRef = ()=>renderMediaStack(refHost, row.reference, refTarget, rerenderRef);
+    const rerenderRef = ()=>{ renderMediaStack(refHost, row.reference, refTarget, rerenderRef, 'REF'); updateColBalance(); };
     rerenderRef();
 
     const col3 = document.createElement('div');
@@ -369,10 +382,11 @@
     const resHost = document.createElement('div'); resHost.className = 'mstack mstack-row';
     col3.appendChild(resHost);
     const resTarget = { kind:'row', rowId: row.id, slot:'result' };
-    const rerenderRes = ()=>{ renderMediaStack(resHost, row.result, resTarget, rerenderRes); renderHighlightGrid(); };
+    const rerenderRes = ()=>{ renderMediaStack(resHost, row.result, resTarget, rerenderRes, 'OUT'); renderHighlightGrid(); };
     rerenderRes();
 
     mediaCols.appendChild(col2); mediaCols.appendChild(col3);
+    updateColBalance();
 
     const col4 = document.createElement('div'); col4.className = 'exp-block';
     col4.innerHTML = '<div class="col-label">Nhận xét</div>';
