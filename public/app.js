@@ -531,7 +531,7 @@
       arr.filter(r=>r.dateGroup === HIGHLIGHT_DATE_GROUP && r.mediaKind === 'video').forEach(r=>{
         (r.result||[]).forEach(m=>{
           const label = r.visualStyle || r.tool || '(chưa đặt tên)';
-          if(m.mediaId) list.push({ kind:'upload', url: mediaUrl(m), appLabel, appCls, label });
+          if(m.mediaId) list.push({ kind:'upload', url: mediaUrl(m), mediaId: m.mediaId, mediaType: m.mediaType, appLabel, appCls, label });
           else if(m.driveId) list.push({ kind:'drive', driveId: m.driveId, appLabel, appCls, label });
         });
       });
@@ -586,6 +586,7 @@
       const title = document.createElement('div'); title.className = 'hl-title'; title.textContent = item.label;
       titleWrap.appendChild(title);
       card.appendChild(badge); card.appendChild(titleWrap);
+      card.addEventListener('click', ()=>openFullscreen(item));
       host.appendChild(card);
       hlObserver.observe(card);
     });
