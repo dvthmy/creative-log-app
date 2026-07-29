@@ -495,7 +495,7 @@
       const key = (r.visualStyle || '(chưa đặt tên)') + '|' + r.mediaKind;
       if(!map.has(key)) map.set(key, { visualStyle: r.visualStyle || '(chưa đặt tên)', mediaKind: r.mediaKind, count: 0, groups: new Set() });
       const e = map.get(key);
-      e.count++; e.groups.add(r.dateGroup);
+      e.count += (r.result||[]).length; e.groups.add(r.dateGroup);
     });
     const labelByKey = new Map(weeksState.map(w=>[w.key, w.label]));
     return [...map.values()].map(e=>({
@@ -520,10 +520,11 @@
     return tr;
   }
   function renderKpiSection(){
+    const countVideos = rows => rows.filter(matchesKpiFilter).reduce((sum,r)=>sum+(r.result||[]).length, 0);
     const perWeek = weeksState.map(w=>({
       label: w.label,
-      bw: bookwiseRowsState.filter(r=>r.dateGroup === w.key && matchesKpiFilter(r)).length,
-      sl: soulieRowsState.filter(r=>r.dateGroup === w.key && matchesKpiFilter(r)).length
+      bw: countVideos(bookwiseRowsState.filter(r=>r.dateGroup === w.key)),
+      sl: countVideos(soulieRowsState.filter(r=>r.dateGroup === w.key))
     }));
     const bwTotal = perWeek.reduce((s,w)=>s+w.bw, 0);
     const slTotal = perWeek.reduce((s,w)=>s+w.sl, 0);
