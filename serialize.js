@@ -58,8 +58,14 @@ async function getUiState() {
   };
 }
 
+async function getWeeks() {
+  const { rows } = await query('SELECT * FROM weeks ORDER BY sort_order, id');
+  return rows.map(r => ({ key: r.key, label: r.label, sortOrder: r.sort_order }));
+}
+
 async function computePlanRows() {
-  const [bookwiseRows, soulieRows] = await Promise.all([getRowsForApp('bookwise'), getRowsForApp('soulie')]);
+  const [bookwiseRows, soulieRows, weeks] = await Promise.all([getRowsForApp('bookwise'), getRowsForApp('soulie'), getWeeks()]);
+  const labelByKey = new Map(weeks.map(w => [w.key, w.label]));
   const all = [
     ...soulieRows.map(r => ({ ...r, app: 'Soulie' })),
     ...bookwiseRows.map(r => ({ ...r, app: 'BookWise' }))
@@ -79,20 +85,21 @@ async function computePlanRows() {
     app: e.app,
     mediaKind: e.mediaKind,
     count: e.count,
-    groups: [...e.groups].map(g => (g === '1-14' ? '01–14/07' : g === '15-28' ? '15–28/07' : g)).join(', ')
+    groups: [...e.groups].map(g => labelByKey.get(g) || g).join(', ')
   }));
 }
 
 async function getFullState() {
-  const [bookwise, soulie, notesMedia, planRows, swState, uiState] = await Promise.all([
+  const [bookwise, soulie, notesMedia, planRows, swState, uiState, weeks] = await Promise.all([
     getRowsForApp('bookwise'),
     getRowsForApp('soulie'),
     getNotesMedia(),
     computePlanRows(),
     getSwState(),
-    getUiState()
+    getUiState(),
+    getWeeks()
   ]);
-  return { rows: { bookwise, soulie }, notesMedia, planRows, swState, uiState };
+  return { rows: { bookwise, soulie }, notesMedia, planRows, swState, uiState, weeks };
 }
 
-module.exports = { getRowsForApp, getNotesMedia, getSwState, getUiState, computePlanRows, getFullState };
+module.exports = { getRowsForApp, getNotesMedia, getSwState, getUiState, getWeeks, computePlanRows, getFullState };

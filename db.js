@@ -58,7 +58,23 @@ async function createSchema() {
       texts_json TEXT DEFAULT '{}',
       group_collapsed_json TEXT DEFAULT '{}'
     );
+
+    CREATE TABLE IF NOT EXISTS weeks (
+      id SERIAL PRIMARY KEY,
+      key TEXT UNIQUE NOT NULL,
+      label TEXT NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0
+    );
   `);
+}
+
+async function seedWeeksIfEmpty() {
+  const { rows } = await query('SELECT COUNT(*) AS n FROM weeks');
+  if (Number(rows[0].n) > 0) return;
+  await query(
+    `INSERT INTO weeks (key, label, sort_order) VALUES ($1,$2,0), ($3,$4,1)`,
+    ['1-14', '01–14/07', '15-28', '15–28/07']
+  );
 }
 
 async function insertRowMedia(client, rowId, slot, items) {
@@ -133,6 +149,6 @@ async function seedIfEmpty() {
   }
 }
 
-const ready = createSchema().then(seedIfEmpty);
+const ready = createSchema().then(seedIfEmpty).then(seedWeeksIfEmpty);
 
 module.exports = { query, ready };

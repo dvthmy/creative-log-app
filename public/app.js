@@ -249,6 +249,8 @@
   }
   function renderMediaStack(host, items, target, rerender){
     host.innerHTML = '';
+    const tileSize = items.length === 1 ? 260 : items.length === 2 ? 210 : items.length === 3 ? 170 : 150;
+    host.style.setProperty('--tile-size', tileSize + 'px');
     items.forEach((item, idx)=> host.appendChild(renderMediaItem(item, items, idx, target, rerender)));
     const addWrap = document.createElement('div'); addWrap.className = 'madd-wrap';
     const add = document.createElement('div'); add.className = 'madd'; add.textContent = '+';
@@ -284,7 +286,9 @@
   let soulieRowsState = [];
   let notesGalState = [];
   let swState = {};
+  let weeksState = []; // [{ key, label }], sorted oldest -> newest
   let uiState = { collapsed:{}, texts:{}, groupCollapsed:{} };
+  function latestWeek(){ return weeksState.length ? weeksState[weeksState.length-1] : null; }
 
   function debounce(fn, ms){
     let t;
@@ -299,7 +303,7 @@
      EXPERIMENT ROW CARD — shared by BookWise and Soulie sections
      ===================================================================== */
   function createExpRow(row, appKey){
-    const el = document.createElement('div'); el.className = 'exp-row';
+    const el = document.createElement('div'); el.className = 'exp-row'; el.id = 'exp-row-' + row.id;
     el.style.setProperty('--rowaccent', appKey === 'soulie' ? 'var(--soulie)' : 'var(--bookwise)');
 
     async function patchRow(fields){
@@ -345,7 +349,9 @@
     inputDesc.addEventListener('blur', ()=>{ row.inputDesc = inputDesc.innerHTML.trim(); patchRow({ inputDesc: row.inputDesc }); });
     col1.appendChild(inputDesc);
 
-    const col2 = document.createElement('div'); col2.className = 'exp-block';
+    const mediaCols = document.createElement('div'); mediaCols.className = 'exp-block exp-media-cols';
+
+    const col2 = document.createElement('div');
     col2.innerHTML = '<div class="col-label">Reference</div>';
     const refHost = document.createElement('div'); refHost.className = 'mstack mstack-row';
     col2.appendChild(refHost);
@@ -353,7 +359,7 @@
     const rerenderRef = ()=>renderMediaStack(refHost, row.reference, refTarget, rerenderRef);
     rerenderRef();
 
-    const col3 = document.createElement('div'); col3.className = 'exp-block';
+    const col3 = document.createElement('div');
     col3.innerHTML = '<div class="col-label">Kết quả của Tool</div>';
     const toolChip = document.createElement('div'); toolChip.className = 'tool-name'; toolChip.contentEditable = true;
     toolChip.setAttribute('data-placeholder','Tên tool…');
@@ -366,6 +372,8 @@
     const rerenderRes = ()=>{ renderMediaStack(resHost, row.result, resTarget, rerenderRes); renderHighlightGrid(); };
     rerenderRes();
 
+    mediaCols.appendChild(col2); mediaCols.appendChild(col3);
+
     const col4 = document.createElement('div'); col4.className = 'exp-block';
     col4.innerHTML = '<div class="col-label">Nhận xét</div>';
     const comment = document.createElement('div'); comment.className = 'row-comment'; comment.contentEditable = true;
@@ -374,41 +382,109 @@
     comment.addEventListener('blur', ()=>{ row.comment = comment.innerHTML.trim(); patchRow({ comment: row.comment }); });
     col4.appendChild(comment);
 
-    el.appendChild(col1); el.appendChild(col2); el.appendChild(col3); el.appendChild(col4);
+    el.appendChild(col1); el.appendChild(mediaCols); el.appendChild(col4);
     return el;
   }
 
-  function renderRowsGroup(stateArr, appKey, group, hostId, cntId){
-    const host = document.getElementById(hostId);
-    host.innerHTML = '';
-    const rows = stateArr.filter(r=>r.dateGroup === group);
-    document.getElementById(cntId).textContent = rows.length;
+  function renderRowsGroup(stateArr, appKey, week, rowsHost, cntEl){
+    rowsHost.innerHTML = '';
+    const rows = stateArr.filter(r=>r.dateGroup === week.key);
+    cntEl.textContent = rows.length;
     if(!rows.length){
       const empty = document.createElement('div'); empty.className = 'empty-group';
       empty.textContent = 'Chưa có experiment nào trong đợt này';
-      host.appendChild(empty);
+      rowsHost.appendChild(empty);
       return;
     }
-    rows.forEach(r=>host.appendChild(createExpRow(r, appKey)));
+    rows.forEach(r=>rowsHost.appendChild(createExpRow(r, appKey)));
   }
-  function renderAllRows(){
-    renderRowsGroup(bookwiseRowsState, 'bookwise', '1-14', 'bw-rows-1', 'bw-cnt-1');
-    renderRowsGroup(bookwiseRowsState, 'bookwise', '15-28', 'bw-rows-2', 'bw-cnt-2');
-    renderRowsGroup(soulieRowsState, 'soulie', '1-14', 'sl-rows-1', 'sl-cnt-1');
-    renderRowsGroup(soulieRowsState, 'soulie', '15-28', 'sl-rows-2', 'sl-cnt-2');
-  }
-  document.querySelectorAll('.row-add').forEach(btn=>{
-    btn.addEventListener('click', async ()=>{
-      const app = btn.dataset.app, group = btn.dataset.group;
-      const arr = app === 'soulie' ? soulieRowsState : bookwiseRowsState;
+
+  let groupHosts = { bookwise:{}, soulie:{} }; // groupHosts[appKey][weekKey] = { rowsHost, cntEl }
+
+  function createGroupBlock(appKey, week){
+    const gkey = (appKey === 'soulie' ? 'sl-' : 'bw-') + week.key;
+    const bodyId = 'body-' + gkey;
+    const block = document.createElement('div'); block.className = 'group-block';
+
+    const head = document.createElement('div'); head.className = 'group-head';
+    head.dataset.gkey = gkey; head.dataset.target = bodyId;
+    const arrow = document.createElement('span'); arrow.className = 'arrow'; arrow.textContent = '▸';
+    const h3 = document.createElement('h3'); h3.textContent = week.label;
+    const cntEl = document.createElement('span'); cntEl.className = 'cnt'; cntEl.textContent = '0';
+    head.appendChild(arrow); head.appendChild(h3); head.appendChild(cntEl);
+    head.addEventListener('click', ()=>{
+      uiState.groupCollapsed = uiState.groupCollapsed || {};
+      uiState.groupCollapsed[gkey] = !isGroupCollapsed(gkey);
+      applyGroupUI(); saveUI();
+    });
+
+    const body = document.createElement('div'); body.className = 'group-body collapsed'; body.id = bodyId;
+    const rowsHost = document.createElement('div');
+    body.appendChild(rowsHost);
+
+    const addBtn = document.createElement('button'); addBtn.className = 'row-add'; addBtn.textContent = '+ Thêm experiment';
+    addBtn.addEventListener('click', async ()=>{
+      const arr = appKey === 'soulie' ? soulieRowsState : bookwiseRowsState;
       try{
-        const { id } = await api('POST', '/api/rows', { app, dateGroup: group });
-        arr.push({ id, mediaKind:'video', visualStyle:'', title:'', dur:'', tool:'', dateGroup:group,
+        const { id } = await api('POST', '/api/rows', { app: appKey, dateGroup: week.key });
+        arr.push({ id, mediaKind:'video', visualStyle:'', title:'', dur:'', tool:'', dateGroup: week.key,
           inputDesc:'', comment:'', reference:[], result:[] });
         renderAllRows(); renderSummary();
       }catch(e){ toast('⚠️ Thêm experiment thất bại: ' + e.message); }
     });
-  });
+    body.appendChild(addBtn);
+
+    const swBlock = document.createElement('div'); swBlock.className = 'sw-block';
+    const sw = document.createElement('div'); sw.className = 'sw';
+    function buildSwCol(side, label, symbol){
+      const col = document.createElement('div'); col.className = 'col ' + side;
+      const h3s = document.createElement('h3'); h3s.textContent = symbol + ' ' + label;
+      col.appendChild(h3s);
+      const edit = document.createElement('div'); edit.className = 'sw-edit'; edit.contentEditable = true;
+      edit.setAttribute('data-placeholder', side === 'good' ? 'Thêm điểm mạnh…' : 'Thêm điều cần cải thiện…');
+      edit.innerHTML = (swState[gkey] && swState[gkey][side]) || '';
+      edit.addEventListener('blur', async ()=>{
+        swState[gkey] = swState[gkey] || { good:'', bad:'' };
+        swState[gkey][side] = edit.innerHTML.trim();
+        try{ await api('PUT', '/api/sw/'+gkey, swState[gkey]); }
+        catch(e){ toast('⚠️ Lưu thất bại: ' + e.message); }
+      });
+      col.appendChild(edit);
+      return col;
+    }
+    sw.appendChild(buildSwCol('good', 'Điểm mạnh', '▲'));
+    sw.appendChild(buildSwCol('bad', 'Cần cải thiện', '▼'));
+    swBlock.appendChild(sw);
+    body.appendChild(swBlock);
+
+    block.appendChild(head); block.appendChild(body);
+    return { block, rowsHost, cntEl };
+  }
+
+  function renderGroupStructure(){
+    ['bookwise','soulie'].forEach(appKey=>{
+      const container = document.getElementById(appKey + '-groups');
+      container.innerHTML = '';
+      groupHosts[appKey] = {};
+      weeksState.forEach(week=>{
+        const { block, rowsHost, cntEl } = createGroupBlock(appKey, week);
+        container.appendChild(block);
+        groupHosts[appKey][week.key] = { rowsHost, cntEl };
+      });
+    });
+    applyGroupUI();
+  }
+
+  function renderAllRows(){
+    ['bookwise','soulie'].forEach(appKey=>{
+      const stateArr = appKey === 'soulie' ? soulieRowsState : bookwiseRowsState;
+      weeksState.forEach(week=>{
+        const hosts = groupHosts[appKey][week.key];
+        if(!hosts) return;
+        renderRowsGroup(stateArr, appKey, week, hosts.rowsHost, hosts.cntEl);
+      });
+    });
+  }
 
   /* =====================================================================
      OVERVIEW DASHBOARD + EXPERIMENT PLAN TABLE
@@ -421,13 +497,13 @@
       const e = map.get(key);
       e.count++; e.groups.add(r.dateGroup);
     });
+    const labelByKey = new Map(weeksState.map(w=>[w.key, w.label]));
     return [...map.values()].map(e=>({
       visualStyle: e.visualStyle, mediaKind: e.mediaKind, count: e.count,
-      groups: [...e.groups].map(g=>g==='1-14'?'01–14/07':g==='15-28'?'15–28/07':g).join(', ')
+      groups: [...e.groups].map(g=>labelByKey.get(g) || g).join(', ')
     }));
   }
 
-  const WEEK_GROUPS = [['1-14','01–14/07'], ['15-28','15–28/07']];
   let kpiFilter = 'all'; // 'all' | 'video' | 'image'
   function matchesKpiFilter(row){ return kpiFilter === 'all' || row.mediaKind === kpiFilter; }
   function kpiTile(label, big, sub, cls){
@@ -444,10 +520,10 @@
     return tr;
   }
   function renderKpiSection(){
-    const perWeek = WEEK_GROUPS.map(([key, label])=>({
-      label,
-      bw: bookwiseRowsState.filter(r=>r.dateGroup === key && matchesKpiFilter(r)).length,
-      sl: soulieRowsState.filter(r=>r.dateGroup === key && matchesKpiFilter(r)).length
+    const perWeek = weeksState.map(w=>({
+      label: w.label,
+      bw: bookwiseRowsState.filter(r=>r.dateGroup === w.key && matchesKpiFilter(r)).length,
+      sl: soulieRowsState.filter(r=>r.dateGroup === w.key && matchesKpiFilter(r)).length
     }));
     const bwTotal = perWeek.reduce((s,w)=>s+w.bw, 0);
     const slTotal = perWeek.reduce((s,w)=>s+w.sl, 0);
@@ -484,8 +560,9 @@
       body.appendChild(tr);
       return;
     }
-    const recentFirst = planRows.filter(e=>(e.groups||'').includes('15–28/07'));
-    const rest = planRows.filter(e=>!(e.groups||'').includes('15–28/07'));
+    const lw = latestWeek();
+    const recentFirst = lw ? planRows.filter(e=>(e.groups||'').includes(lw.label)) : [];
+    const rest = lw ? planRows.filter(e=>!(e.groups||'').includes(lw.label)) : planRows;
     const sorted = recentFirst.concat(rest);
     const visible = planExpanded[appKey] ? sorted : sorted.slice(0, PLAN_TABLE_CAP);
     visible.forEach(e=>{
@@ -498,6 +575,13 @@
       const tdCount = document.createElement('td'); tdCount.className = 'count'; tdCount.textContent = e.count;
       const tdGroups = document.createElement('td'); tdGroups.textContent = e.groups;
       tr.appendChild(tdStyle); tr.appendChild(tdKind); tr.appendChild(tdCount); tr.appendChild(tdGroups);
+      const matches = rows.filter(r=>(r.visualStyle||'(chưa đặt tên)')===e.visualStyle && r.mediaKind===e.mediaKind);
+      const match = (lw && matches.find(r=>r.dateGroup===lw.key)) || matches[0];
+      if(match){
+        tr.className = 'plan-row-link';
+        tr.title = 'Xem chi tiết experiment này';
+        tr.addEventListener('click', ()=>scrollToExpRow(match.id, appKey, match.dateGroup));
+      }
       body.appendChild(tr);
     });
     if(sorted.length > PLAN_TABLE_CAP){
@@ -523,16 +607,32 @@
      HIGHLIGHTS THIS WEEK — grid of latest-batch result videos, each
      playing/pausing itself as it scrolls in/out of view
      ===================================================================== */
-  const HIGHLIGHT_DATE_GROUP = '15-28'; // batch gần nhất, giống quy ước 2 đợt cứng của app
   const HIGHLIGHT_MAX = 24;
+  let selectedHighlightWeekKey = null;
+  function highlightWeek(){
+    return weeksState.find(w=>w.key === selectedHighlightWeekKey) || latestWeek();
+  }
+  function renderHighlightWeekSelect(){
+    const sel = document.getElementById('hl-week-select');
+    sel.innerHTML = '';
+    weeksState.forEach(w=>{
+      const opt = document.createElement('option'); opt.value = w.key; opt.textContent = w.label;
+      sel.appendChild(opt);
+    });
+    const lw = latestWeek();
+    sel.value = selectedHighlightWeekKey || (lw ? lw.key : '');
+    sel.onchange = ()=>{ selectedHighlightWeekKey = sel.value; renderHighlightGrid(); };
+  }
   function buildHighlightList(){
+    const wk = highlightWeek();
+    if(!wk) return [];
     const list = [];
     [ ['Soulie','soulie', soulieRowsState], ['BookWise','bookwise', bookwiseRowsState] ].forEach(([appLabel, appCls, arr])=>{
-      arr.filter(r=>r.dateGroup === HIGHLIGHT_DATE_GROUP && r.mediaKind === 'video').forEach(r=>{
+      arr.filter(r=>r.dateGroup === wk.key && r.mediaKind === 'video').forEach(r=>{
         (r.result||[]).forEach(m=>{
           const label = r.visualStyle || r.tool || '(chưa đặt tên)';
-          if(m.mediaId) list.push({ kind:'upload', url: mediaUrl(m), mediaId: m.mediaId, mediaType: m.mediaType, appLabel, appCls, label });
-          else if(m.driveId) list.push({ kind:'drive', driveId: m.driveId, appLabel, appCls, label });
+          if(m.mediaId) list.push({ kind:'upload', url: mediaUrl(m), mediaId: m.mediaId, mediaType: m.mediaType, appLabel, appCls, label, rowId: r.id, dateGroup: r.dateGroup });
+          else if(m.driveId) list.push({ kind:'drive', driveId: m.driveId, appLabel, appCls, label, rowId: r.id, dateGroup: r.dateGroup });
         });
       });
     });
@@ -544,14 +644,16 @@
     const sub = document.getElementById('highlight-sub');
     host.innerHTML = '';
     if(hlObserver) hlObserver.disconnect();
+    const wk = highlightWeek();
+    const wkLabel = wk ? wk.label : 'đợt gần nhất';
     const full = buildHighlightList();
     const list = full.slice(0, HIGHLIGHT_MAX);
     sub.textContent = full.length > HIGHLIGHT_MAX
-      ? 'Video kết quả của đợt gần nhất (đang hiện ' + HIGHLIGHT_MAX + '/' + full.length + ')'
-      : 'Video kết quả của đợt gần nhất';
+      ? 'Video kết quả của đợt ' + wkLabel + ' (đang hiện ' + HIGHLIGHT_MAX + '/' + full.length + ')'
+      : 'Video kết quả của đợt ' + wkLabel;
     if(!list.length){
       host.className = 'highlight-grid empty-note';
-      host.textContent = 'Chưa có video nào trong đợt gần nhất';
+      host.textContent = 'Chưa có video nào trong đợt ' + wkLabel;
       return;
     }
     host.className = 'highlight-grid';
@@ -575,17 +677,31 @@
       if(item.kind === 'upload'){
         const video = document.createElement('video');
         video.muted = true; video.loop = true; video.playsInline = true; video.src = item.url;
+        video.addEventListener('loadeddata', ()=>card.classList.add('hl-ready'), { once:true });
+        video.addEventListener('error', ()=>card.classList.add('hl-ready'), { once:true });
         card.appendChild(video);
       }else{
         const ifr = document.createElement('iframe');
         ifr.loading = 'lazy'; ifr.setAttribute('allow','autoplay');
+        ifr.addEventListener('load', ()=>card.classList.add('hl-ready'), { once:true });
         card.appendChild(ifr);
       }
       const badge = document.createElement('div'); badge.className = 'hl-badge ' + item.appCls; badge.textContent = item.appLabel;
+      badge.title = 'Xem chi tiết experiment này';
+      badge.addEventListener('click', e=>{
+        e.stopPropagation();
+        scrollToExpRow(item.rowId, item.appCls, item.dateGroup);
+      });
       const titleWrap = document.createElement('div'); titleWrap.className = 'hl-title-wrap';
       const title = document.createElement('div'); title.className = 'hl-title'; title.textContent = item.label;
       titleWrap.appendChild(title);
-      card.appendChild(badge); card.appendChild(titleWrap);
+      const jumpBtn = document.createElement('button'); jumpBtn.className = 'hl-jump'; jumpBtn.textContent = '→';
+      jumpBtn.title = 'Xem chi tiết experiment này';
+      jumpBtn.addEventListener('click', e=>{
+        e.stopPropagation();
+        scrollToExpRow(item.rowId, item.appCls, item.dateGroup);
+      });
+      card.appendChild(badge); card.appendChild(titleWrap); card.appendChild(jumpBtn);
       card.addEventListener('click', ()=>openFullscreen(item));
       host.appendChild(card);
       hlObserver.observe(card);
@@ -598,25 +714,6 @@
   const notesTarget = { kind:'notes' };
   function renderNotesStack(){
     renderMediaStack(document.getElementById('notes-stack'), notesGalState, notesTarget, renderNotesStack);
-  }
-
-  /* =====================================================================
-     STRENGTHS & IMPROVEMENTS — one editable block per date-range group
-     ===================================================================== */
-  function applySWState(){
-    ['bw-1-14','bw-15-28','sl-1-14','sl-15-28'].forEach(key=>{
-      ['good','bad'].forEach(side=>{
-        const el = document.getElementById('sw-'+key+'-'+side);
-        if(!el) return;
-        el.innerHTML = (swState[key] && swState[key][side]) || '';
-        el.addEventListener('blur', async ()=>{
-          swState[key] = swState[key] || { good:'', bad:'' };
-          swState[key][side] = el.innerHTML.trim();
-          try{ await api('PUT', '/api/sw/'+key, swState[key]); }
-          catch(e){ toast('⚠️ Lưu thất bại: ' + e.message); }
-        });
-      });
-    });
   }
 
   /* =====================================================================
@@ -655,6 +752,7 @@
         if(btn.classList.contains('sec-toggle') || btn.classList.contains('sb-toggle')){
           btn.textContent = collapsed ? '▸' : '▾';
         }
+        if(btn.classList.contains('sb-week')) btn.classList.toggle('sb-week-hidden', collapsed);
       });
     });
     Object.keys(uiState.texts).forEach(id=>{
@@ -664,6 +762,21 @@
     applyGroupUI();
   }
   function toggleSection(id){ uiState.collapsed[id] = !uiState.collapsed[id]; applyUIState(); saveUI(); }
+
+  function scrollToExpRow(rowId, appKey, dateGroup){
+    uiState.collapsed[appKey] = false;
+    uiState.groupCollapsed = uiState.groupCollapsed || {};
+    const groupKey = (appKey === 'soulie' ? 'sl-' : 'bw-') + dateGroup;
+    uiState.groupCollapsed[groupKey] = false;
+    applyUIState(); saveUI();
+    requestAnimationFrame(()=>{
+      const el = document.getElementById('exp-row-' + rowId);
+      if(!el) return;
+      el.scrollIntoView({ behavior:'smooth', block:'center' });
+      el.classList.add('flash');
+      setTimeout(()=>el.classList.remove('flash'), 1600);
+    });
+  }
   (function initSectionsUI(){
     document.querySelectorAll('.sec-toggle, .sb-toggle').forEach(btn=>{
       btn.addEventListener('click', e=>{ e.preventDefault(); e.stopPropagation(); toggleSection(btn.dataset.section); });
@@ -680,6 +793,58 @@
     });
   })();
 
+  function renderSidebarWeeks(){
+    ['bookwise','soulie'].forEach(appKey=>{
+      const container = document.getElementById('sb-weeks-' + appKey);
+      container.innerHTML = '';
+      weeksState.forEach(week=>{
+        const gkey = (appKey === 'soulie' ? 'sl-' : 'bw-') + week.key;
+        const a = document.createElement('a'); a.className = 'sb-week'; a.textContent = week.label;
+        a.dataset.section = appKey; a.dataset.gkey = gkey;
+        a.addEventListener('click', ()=>{
+          uiState.collapsed[appKey] = false;
+          uiState.groupCollapsed = uiState.groupCollapsed || {};
+          uiState.groupCollapsed[gkey] = false;
+          applyUIState(); saveUI();
+          requestAnimationFrame(()=>{
+            const head = document.querySelector('.group-head[data-gkey="'+gkey+'"]');
+            if(head) head.scrollIntoView({ behavior:'smooth', block:'start' });
+          });
+        });
+        container.appendChild(a);
+      });
+    });
+  }
+
+  /* =====================================================================
+     ADD WEEK MODAL — pick a date range, creates the week for both apps
+     ===================================================================== */
+  const weekModal = document.getElementById('weekmodal');
+  const weekStartInput = document.getElementById('week-start-input');
+  const weekEndInput = document.getElementById('week-end-input');
+  document.getElementById('add-week-btn').addEventListener('click', ()=>{
+    weekStartInput.value = ''; weekEndInput.value = '';
+    weekModal.classList.add('on');
+  });
+  document.getElementById('week-cancel').addEventListener('click', ()=>weekModal.classList.remove('on'));
+  weekModal.addEventListener('click', e=>{ if(e.target === weekModal) weekModal.classList.remove('on'); });
+  document.getElementById('week-ok').addEventListener('click', async ()=>{
+    const startDate = weekStartInput.value, endDate = weekEndInput.value;
+    if(!startDate || !endDate){ toast('⚠️ Chọn đủ ngày bắt đầu và kết thúc'); return; }
+    try{
+      const week = await api('POST', '/api/weeks', { startDate, endDate });
+      weeksState.push({ key: week.key, label: week.label });
+      weekModal.classList.remove('on');
+      renderGroupStructure();
+      renderAllRows();
+      renderSidebarWeeks();
+      renderSummary();
+      renderHighlightWeekSelect();
+      renderHighlightGrid();
+      toast('✓ Đã thêm đợt ' + week.label);
+    }catch(e){ toast('⚠️ Thêm đợt thất bại: ' + e.message); }
+  });
+
   /* =====================================================================
      INIT
      ===================================================================== */
@@ -690,16 +855,19 @@
       soulieRowsState = state.rows.soulie;
       notesGalState = state.notesMedia;
       swState = state.swState;
+      weeksState = state.weeks || [];
       uiState = { collapsed: state.uiState.collapsed || {}, texts: state.uiState.texts || {}, groupCollapsed: state.uiState.groupCollapsed || {} };
     }catch(e){
       toast('⚠️ Không tải được dữ liệu từ server: ' + e.message);
       return;
     }
+    renderGroupStructure();
+    renderSidebarWeeks();
     renderAllRows();
     renderSummary();
+    renderHighlightWeekSelect();
     renderHighlightGrid();
     renderNotesStack();
-    applySWState();
     applyUIState();
   }
 

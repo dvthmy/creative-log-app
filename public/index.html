@@ -31,6 +31,10 @@
   .sb-item{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 10px;
     border-radius:9px;color:var(--muted);text-decoration:none;font-size:12.5px;margin-bottom:3px}
   .sb-item:hover{background:#F1ECE0;color:var(--ink)}
+  .sb-week{display:block;padding:6px 10px 6px 26px;border-radius:9px;color:var(--muted);text-decoration:none;
+    font-size:11.5px;margin-bottom:2px;cursor:pointer}
+  .sb-week:hover{background:#F1ECE0;color:var(--ink)}
+  .sb-week.sb-week-hidden{display:none}
 
   [contenteditable]{outline:none}
   [contenteditable]:empty:before{content:attr(data-placeholder);color:#B7B0A2}
@@ -75,18 +79,33 @@
   .sync-btn:hover{color:var(--accent);text-decoration:underline}
 
   /* ---- highlights this week — autoplay video grid ---- */
+  .hl-header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .hl-week-select{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;
+    padding:7px 30px 7px 14px;font-size:12.5px;font-weight:700;cursor:pointer;
+    appearance:none;-webkit-appearance:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238C8579'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 12px center}
+  .hl-week-select:hover{border-color:var(--accent)}
   .highlight-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:14px}
   .hl-card{position:relative;border-radius:12px;overflow:hidden;background:#14110D;aspect-ratio:9/16;
     box-shadow:0 6px 18px rgba(20,17,13,.14);cursor:zoom-in}
-  .hl-card video,.hl-card iframe{width:100%;height:100%;object-fit:cover;border:0;display:block;pointer-events:none}
+  .hl-card video,.hl-card iframe{width:100%;height:100%;object-fit:cover;border:0;display:block;pointer-events:none;
+    opacity:0;transition:opacity .45s ease}
+  .hl-card.hl-ready video,.hl-card.hl-ready iframe{opacity:1}
   .hl-card iframe{transform:scale(1.15);transform-origin:center}
   .hl-badge{position:absolute;top:6px;right:6px;font-size:9px;font-weight:800;padding:2px 7px;border-radius:999px;
-    text-transform:uppercase;letter-spacing:.04em;color:#fff;z-index:2}
+    text-transform:uppercase;letter-spacing:.04em;color:#fff;z-index:2;cursor:pointer}
+  .hl-badge:hover{text-decoration:underline}
   .hl-badge.soulie{background:var(--soulie)}
   .hl-badge.bookwise{background:var(--bookwise)}
   .hl-title-wrap{position:absolute;left:0;right:0;bottom:0;padding:16px 8px 8px;z-index:2;
     background:linear-gradient(to top, rgba(10,8,6,.88), rgba(10,8,6,0))}
   .hl-title{font-size:10.5px;font-weight:800;color:#fff;line-height:1.25;text-shadow:0 1px 3px rgba(0,0,0,.4)}
+  .hl-jump{position:absolute;bottom:8px;right:8px;width:24px;height:24px;border-radius:50%;z-index:3;
+    background:rgba(255,255,255,.18);backdrop-filter:blur(2px);border:1px solid rgba(255,255,255,.55);
+    color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;
+    cursor:pointer;line-height:1}
+  .hl-jump:hover{background:var(--accent);border-color:var(--accent)}
 
   .plan-cols{display:grid;grid-template-columns:1fr 1fr;gap:20px}
   @media(max-width:900px){.plan-cols{grid-template-columns:1fr}}
@@ -102,6 +121,8 @@
   table.plan-table tr:last-child td{border-bottom:none}
   table.plan-table td.count{font-weight:800;color:var(--accent);text-align:center;width:64px}
   table.plan-table td.kind-cell{width:80px}
+  table.plan-table tr.plan-row-link{cursor:pointer}
+  table.plan-table tr.plan-row-link:hover td{background:var(--card-soft)}
 
   /* ---- collapsible date-range groups ---- */
   .group-block{margin-bottom:6px}
@@ -113,9 +134,14 @@
 
   /* ---- experiment rows (Phần 2 & 3) ---- */
   .exp-row{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--rowaccent,var(--accent));
-    border-radius:var(--radius);padding:18px 20px;margin-bottom:14px;display:flex;flex-direction:column;gap:16px}
+    border-radius:var(--radius);padding:18px 20px;margin-bottom:14px;display:flex;flex-direction:column;gap:16px;
+    scroll-margin-top:24px;transition:box-shadow .3s,border-color .3s}
+  .exp-row.flash{box-shadow:0 0 0 3px var(--rowaccent,var(--accent));border-color:var(--rowaccent,var(--accent))}
   .exp-block{border-top:1px solid var(--line);padding-top:14px}
   .exp-block:first-child{border-top:none;padding-top:0}
+  .exp-media-cols{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  .exp-media-cols > div{min-width:0}
+  @media(max-width:700px){.exp-media-cols{grid-template-columns:1fr}}
   .col-label{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);
     margin-bottom:7px;font-weight:700}
   .exp-head{display:flex;align-items:center;gap:6px;margin-bottom:8px}
@@ -135,7 +161,7 @@
   /* ---- media stack (multi image/video + fullscreen) ---- */
   .mstack{display:flex;flex-wrap:wrap;gap:14px}
   .mstack-row{flex-wrap:nowrap;overflow-x:auto;padding-bottom:6px}
-  .mitem-wrap{width:150px}
+  .mitem-wrap{width:var(--tile-size, 150px)}
   .mitem{width:100%;aspect-ratio:9/16;border-radius:12px;overflow:hidden;background:#14110D;
     border:1px solid var(--line);position:relative;cursor:zoom-in;box-shadow:0 6px 18px rgba(20,17,13,.14);
     transition:transform .12s,box-shadow .12s}
@@ -155,7 +181,7 @@
   .mitem-title{font-size:11.5px;font-weight:800;color:#fff;line-height:1.25;text-shadow:0 1px 3px rgba(0,0,0,.4);
     pointer-events:auto;outline:none}
   .mitem-title:empty:before{content:attr(data-placeholder);color:rgba(255,255,255,.55);font-weight:600}
-  .madd-wrap{width:150px;display:flex;flex-direction:column;align-items:center}
+  .madd-wrap{width:var(--tile-size, 150px);display:flex;flex-direction:column;align-items:center}
   .madd{width:100%;aspect-ratio:9/16;border-radius:12px;border:1.5px dashed var(--line);background:transparent;
     color:#B7B0A2;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center}
   .madd:hover,.madd.selected{border-color:var(--accent);color:var(--accent)}
@@ -174,15 +200,16 @@
   .fs-frame{max-height:95vh;max-width:96vw;aspect-ratio:9/16;border-radius:14px;overflow:hidden;background:#000;
     box-shadow:0 24px 70px rgba(0,0,0,.5)}
   .fs-frame iframe,.fs-frame img,.fs-frame video{width:100%;height:100%;object-fit:contain;border:0;display:block}
+  .fs-frame iframe{transform:scale(1.15);transform-origin:center}
   .fs-close{position:fixed;top:22px;right:26px;width:42px;height:42px;border-radius:50%;
     background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);color:#fff;font-size:20px;cursor:pointer;
     line-height:1;display:grid;place-items:center}
   .fs-close:hover{background:var(--accent);border-color:var(--accent)}
 
   /* ---- drive-link modal ---- */
-  #drivemodal{position:fixed;inset:0;z-index:90;display:none;place-items:center;padding:20px;
+  #drivemodal,#weekmodal{position:fixed;inset:0;z-index:90;display:none;place-items:center;padding:20px;
     background:rgba(43,40,35,.35)}
-  #drivemodal.on{display:grid}
+  #drivemodal.on,#weekmodal.on{display:grid}
   .drive-box{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
     padding:22px 24px;width:100%;max-width:380px;box-shadow:0 20px 50px rgba(0,0,0,.18)}
   .drive-box h3{margin:0 0 4px}
@@ -246,8 +273,10 @@
     <button class="sb-toggle" data-section="overview" title="Collapse/expand">▾</button></a>
   <a class="sb-item" href="#bookwise" data-section="bookwise"><span>2 · BookWise</span>
     <button class="sb-toggle" data-section="bookwise" title="Collapse/expand">▾</button></a>
+  <div id="sb-weeks-bookwise"></div>
   <a class="sb-item" href="#soulie" data-section="soulie"><span>3 · Soulie</span>
     <button class="sb-toggle" data-section="soulie" title="Collapse/expand">▾</button></a>
+  <div id="sb-weeks-soulie"></div>
   <a class="sb-item" href="#notes" data-section="notes"><span>Ghi chú</span>
     <button class="sb-toggle" data-section="notes" title="Collapse/expand">▾</button></a>
 </aside>
@@ -258,6 +287,8 @@
   <section id="overview">
     <h1>1 · Overview &amp; Experiment Plan<button class="sec-toggle" data-section="overview" title="Collapse/expand">▾</button></h1>
     <p class="sub" contenteditable="true" data-editable-text id="overview-sub"></p>
+
+    <button class="row-add" style="width:auto;margin-bottom:20px" id="add-week-btn">+ Thêm đợt mới</button>
 
     <div class="kpi-filter" id="kpi-filter">
       <button class="kpi-filter-btn active" data-kind="all">Tất cả</button>
@@ -289,7 +320,10 @@
       </div>
     </div>
 
-    <h2 style="margin-top:28px">Highlights this week</h2>
+    <div class="hl-header">
+      <h2 style="margin-top:28px">Highlights this week</h2>
+      <select class="hl-week-select" id="hl-week-select"></select>
+    </div>
     <p class="sub" style="margin-bottom:12px" id="highlight-sub">Video kết quả của đợt gần nhất</p>
     <div class="highlight-grid" id="highlight-grid"></div>
   </section>
@@ -299,33 +333,7 @@
     <h1>2 · BookWise<button class="sec-toggle" data-section="bookwise" title="Collapse/expand">▾</button></h1>
     <p class="sub" contenteditable="true" data-editable-text id="bookwise-sub"></p>
 
-    <div class="group-block">
-      <div class="group-head" data-gkey="bw-1-14" data-target="bw-body-1"><span class="arrow">▸</span><h3>01–14/07</h3><span class="cnt" id="bw-cnt-1">0</span></div>
-      <div class="group-body collapsed" id="bw-body-1">
-        <div id="bw-rows-1"></div>
-        <button class="row-add" data-app="bookwise" data-group="1-14">+ Thêm experiment</button>
-        <div class="sw-block">
-          <div class="sw">
-            <div class="col good"><h3>▲ Điểm mạnh</h3><div class="sw-edit" contenteditable="true" data-placeholder="Thêm điểm mạnh…" id="sw-bw-1-14-good"></div></div>
-            <div class="col bad"><h3>▼ Cần cải thiện</h3><div class="sw-edit" contenteditable="true" data-placeholder="Thêm điều cần cải thiện…" id="sw-bw-1-14-bad"></div></div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="group-block">
-      <div class="group-head" data-gkey="bw-15-28" data-target="bw-body-2"><span class="arrow">▸</span><h3>15–28/07</h3><span class="cnt" id="bw-cnt-2">0</span></div>
-      <div class="group-body collapsed" id="bw-body-2">
-        <div id="bw-rows-2"></div>
-        <button class="row-add" data-app="bookwise" data-group="15-28">+ Thêm experiment</button>
-        <div class="sw-block">
-          <div class="sw">
-            <div class="col good"><h3>▲ Điểm mạnh</h3><div class="sw-edit" contenteditable="true" data-placeholder="Thêm điểm mạnh…" id="sw-bw-15-28-good"></div></div>
-            <div class="col bad"><h3>▼ Cần cải thiện</h3><div class="sw-edit" contenteditable="true" data-placeholder="Thêm điều cần cải thiện…" id="sw-bw-15-28-bad"></div></div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <div id="bookwise-groups"></div>
   </section>
 
   <!-- ============ PHẦN 3 — SOULIE ============ -->
@@ -333,33 +341,7 @@
     <h1>3 · Soulie<button class="sec-toggle" data-section="soulie" title="Collapse/expand">▾</button></h1>
     <p class="sub" contenteditable="true" data-editable-text id="soulie-sub"></p>
 
-    <div class="group-block">
-      <div class="group-head" data-gkey="sl-1-14" data-target="sl-body-1"><span class="arrow">▸</span><h3>01–14/07</h3><span class="cnt" id="sl-cnt-1">0</span></div>
-      <div class="group-body collapsed" id="sl-body-1">
-        <div id="sl-rows-1"></div>
-        <button class="row-add" data-app="soulie" data-group="1-14">+ Thêm experiment</button>
-        <div class="sw-block">
-          <div class="sw">
-            <div class="col good"><h3>▲ Điểm mạnh</h3><div class="sw-edit" contenteditable="true" data-placeholder="Thêm điểm mạnh…" id="sw-sl-1-14-good"></div></div>
-            <div class="col bad"><h3>▼ Cần cải thiện</h3><div class="sw-edit" contenteditable="true" data-placeholder="Thêm điều cần cải thiện…" id="sw-sl-1-14-bad"></div></div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="group-block">
-      <div class="group-head" data-gkey="sl-15-28" data-target="sl-body-2"><span class="arrow">▸</span><h3>15–28/07</h3><span class="cnt" id="sl-cnt-2">0</span></div>
-      <div class="group-body collapsed" id="sl-body-2">
-        <div id="sl-rows-2"></div>
-        <button class="row-add" data-app="soulie" data-group="15-28">+ Thêm experiment</button>
-        <div class="sw-block">
-          <div class="sw">
-            <div class="col good"><h3>▲ Điểm mạnh</h3><div class="sw-edit" contenteditable="true" data-placeholder="Thêm điểm mạnh…" id="sw-sl-15-28-good"></div></div>
-            <div class="col bad"><h3>▼ Cần cải thiện</h3><div class="sw-edit" contenteditable="true" data-placeholder="Thêm điều cần cải thiện…" id="sw-sl-15-28-bad"></div></div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <div id="soulie-groups"></div>
   </section>
 
   <!-- ============ NOTES ============ -->
@@ -392,6 +374,20 @@
     <div class="drive-actions">
       <button class="drive-cancel-btn" id="drive-cancel">Huỷ</button>
       <button class="drive-ok-btn" id="drive-ok">Thêm</button>
+    </div>
+  </div>
+</div>
+<div id="weekmodal">
+  <div class="drive-box">
+    <h3>Thêm đợt mới</h3>
+    <p>Chọn khoảng ngày cho đợt — sẽ hiện ra ở cả BookWise và Soulie</p>
+    <label style="font-size:11.5px;color:var(--muted);display:block;margin-bottom:4px">Từ ngày</label>
+    <input type="date" id="week-start-input" style="margin-bottom:12px">
+    <label style="font-size:11.5px;color:var(--muted);display:block;margin-bottom:4px">Đến ngày</label>
+    <input type="date" id="week-end-input">
+    <div class="drive-actions">
+      <button class="drive-cancel-btn" id="week-cancel">Huỷ</button>
+      <button class="drive-ok-btn" id="week-ok">Thêm đợt</button>
     </div>
   </div>
 </div>

@@ -9,6 +9,7 @@ const rowMediaRouter = require('./routes/rowMedia');
 const notesRouter = require('./routes/notes');
 const swRouter = require('./routes/sw');
 const uiRouter = require('./routes/ui');
+const weeksRouter = require('./routes/weeks');
 
 const app = express();
 app.use(express.json({ limit: '2mb' }));
@@ -22,6 +23,7 @@ app.use('/api/row-media', rowMediaRouter);
 app.use('/api/notes', notesRouter);
 app.use('/api/sw', swRouter);
 app.use('/api/ui', uiRouter);
+app.use('/api/weeks', weeksRouter);
 
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
