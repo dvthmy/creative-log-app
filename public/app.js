@@ -389,7 +389,7 @@
   function renderRowsGroup(stateArr, appKey, week, rowsHost, cntEl){
     rowsHost.innerHTML = '';
     const rows = stateArr.filter(r=>r.dateGroup === week.key);
-    cntEl.textContent = rows.length;
+    cntEl.textContent = rows.reduce((sum,r)=>sum+(r.result||[]).length, 0);
     if(!rows.length){
       const empty = document.createElement('div'); empty.className = 'empty-group';
       empty.textContent = 'Chưa có experiment nào trong đợt này';
