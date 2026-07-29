@@ -13,11 +13,19 @@ Nó bắt đầu từ 1 file HTML tĩnh duy nhất (xem `../creative-experiment-
 ## Stack đã chốt
 
 - **Backend:** Node.js + Express, 1 process duy nhất serve cả static frontend và API (không cần 2 port).
-- **DB:** SQLite (file `data.db`), KHÔNG dùng ORM nặng — `better-sqlite3` hoặc tương đương là đủ, tránh over-engineer cho app nhỏ này.
+- **DB:** PostgreSQL (qua `pg`, biến môi trường `DATABASE_URL`), KHÔNG dùng ORM nặng — chỉ query thô, tránh over-engineer cho app nhỏ này. **Toàn bộ tầng DB là async/await** (khác bản đầu dùng SQLite đồng bộ — xem lý do đổi bên dưới).
 - **Media storage:** lưu file trực tiếp trên disk (`uploads/`), serve qua route static. Video demo có sẵn tiếp tục dùng Google Drive `driveId` + iframe embed như bản gốc — KHÔNG tải các video Drive đó về.
 - **Frontend:** vanilla JS/HTML/CSS, KHÔNG build step, KHÔNG framework. Giữ nguyên class name, id, cấu trúc DOM của bản gốc càng nhiều càng tốt — chỉ thay lớp gọi IndexedDB bằng lớp gọi `fetch()` tới API.
 
 Đừng tự đổi sang React/TypeScript/bundler nếu không được yêu cầu — đây là quyết định đã hỏi và chốt với người dùng, không phải mặc định.
+
+### Vì sao đổi từ SQLite sang PostgreSQL
+
+Bản đầu dùng SQLite (`better-sqlite3`, đồng bộ) theo đúng SPEC.md gốc. Nhưng `better-sqlite3` là native module (cần compile C++), và **build fail trên môi trường deploy của Replit** — Replit Agent đã tự động migrate sang PostgreSQL (Replit có Postgres managed sẵn, cấp qua `DATABASE_URL`) để app chạy được. Sau khi phát hiện việc này (qua merge conflict giữa local và Replit), người dùng đã chốt **giữ Postgres** vì đã chứng minh deploy được trên chính môi trường Replit, thay vì cố sửa lỗi build native module.
+
+**Hệ quả quan trọng:** mọi hàm trong `db.js`/`serialize.js`/`routes/*.js` đều là `async`, dùng `pg` với placeholder `$1, $2...` (không phải `?` hay `@name` như better-sqlite3), và cú pháp SQL theo chuẩn Postgres (`SERIAL` thay vì `AUTOINCREMENT`, `RETURNING id` để lấy id vừa insert, transaction phải tự `BEGIN`/`COMMIT`/`ROLLBACK` qua `pool.connect()` thay vì `db.transaction()` đồng bộ). Khi sửa code, giữ đúng pattern này — đừng quay lại code đồng bộ kiểu better-sqlite3.
+
+`server.js` phải `await db.ready` trước khi `app.listen()`, vì schema + seed chạy async lúc khởi động.
 
 ## Cấu trúc dự kiến
 
@@ -25,21 +33,21 @@ Nó bắt đầu từ 1 file HTML tĩnh duy nhất (xem `../creative-experiment-
 creative-log-app/
   SPEC.md
   CLAUDE.md
-  server.js            -- Express app, mount API routes + static + uploads
-  db.js                -- khởi tạo SQLite, schema, helper query
+  server.js            -- Express app, await db.ready rồi mới listen
+  db.js                -- pg Pool, tạo schema + seed (async), export query() + ready
+  serialize.js          -- đọc dữ liệu cho /api/state (toàn bộ async)
   routes/
     rows.js
-    media.js
-    plan.js
+    rowMedia.js
+    notes.js
     sw.js
     ui.js
   public/
     index.html          -- port từ file HTML gốc, xoá phần IndexedDB
     app.js               -- toàn bộ script cũ, sửa lại tầng persistence
-    style.css            -- có thể giữ inline <style> như gốc, không bắt buộc tách
   uploads/               -- media user upload, KHÔNG commit vào git (.gitignore)
-  data.db                -- SQLite, KHÔNG commit vào git
 ```
+Không còn `data.db` — DB là Postgres ngoài (`DATABASE_URL`), không phải file cục bộ.
 
 ## Quy tắc khi sửa code
 
@@ -51,12 +59,14 @@ creative-log-app/
 
 ## Deploy trên Replit
 
-Xem §6 trong SPEC.md — quan trọng nhất là phải bật **Persistent Storage** (hoặc Reserved VM) cho `data.db` và `uploads/`, nếu không toàn bộ dữ liệu mất khi Replit redeploy container.
+- **DB (Postgres):** đã persist độc lập với container app (Replit managed Postgres) — không mất khi redeploy, không cần Persistent Storage cho phần này.
+- **`uploads/` (media user upload trực tiếp, không phải Drive link):** vẫn là file trên disk của container app — vẫn phải bật **Persistent Storage** (hoặc Reserved VM), nếu không các file upload trực tiếp sẽ mất khi Replit redeploy. Xem thêm §6 trong SPEC.md.
+- `DATABASE_URL` lấy từ Replit Secrets, không hardcode/commit vào code.
 
 ## Chạy dev
 
+Cần biến môi trường `DATABASE_URL` trỏ tới 1 Postgres (local qua Docker, hoặc Replit's Postgres, hoặc bất kỳ Postgres nào khác):
 ```
-npm install
-node server.js
+DATABASE_URL="postgres://user:pass@host:port/dbname" node server.js
 ```
-Không có bước build. Sửa file trong `public/` là thấy ngay khi reload (không cần watch/HMR vì không có bundler).
+Không có bước build. Sửa file trong `public/` là thấy ngay khi reload (không cần watch/HMR vì không có bundler). Lần chạy đầu tiên với DB rỗng, schema + seed data từ `seed-data.json` tự chạy.

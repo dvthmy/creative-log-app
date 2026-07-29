@@ -1,4 +1,4 @@
-const db = require('./db');
+const { query } = require('./db');
 
 function mediaItemOut(m) {
   const out = { id: m.id, caption: m.caption || '' };
@@ -7,9 +7,19 @@ function mediaItemOut(m) {
   return out;
 }
 
-function getRowsForApp(app) {
-  const rows = db.prepare('SELECT * FROM rows WHERE app = ? ORDER BY sort_order, id').all(app);
-  const mediaStmt = db.prepare('SELECT * FROM row_media WHERE row_id = ? AND slot = ? ORDER BY sort_order, id');
+async function getRowsForApp(app) {
+  const { rows } = await query('SELECT * FROM rows WHERE app = $1 ORDER BY sort_order, id', [app]);
+  if (!rows.length) return [];
+  const ids = rows.map(r => r.id);
+  const { rows: mediaRows } = await query(
+    'SELECT * FROM row_media WHERE row_id = ANY($1::int[]) ORDER BY sort_order, id', [ids]
+  );
+  const byKey = new Map();
+  mediaRows.forEach(m => {
+    const key = m.row_id + '|' + m.slot;
+    if (!byKey.has(key)) byKey.set(key, []);
+    byKey.get(key).push(mediaItemOut(m));
+  });
   return rows.map(r => ({
     id: r.id,
     mediaKind: r.media_kind,
@@ -20,24 +30,26 @@ function getRowsForApp(app) {
     dateGroup: r.date_group,
     inputDesc: r.input_desc,
     comment: r.comment,
-    reference: mediaStmt.all(r.id, 'reference').map(mediaItemOut),
-    result: mediaStmt.all(r.id, 'result').map(mediaItemOut)
+    reference: byKey.get(r.id + '|reference') || [],
+    result: byKey.get(r.id + '|result') || []
   }));
 }
 
-function getNotesMedia() {
-  return db.prepare('SELECT * FROM notes_media ORDER BY sort_order, id').all().map(mediaItemOut);
+async function getNotesMedia() {
+  const { rows } = await query('SELECT * FROM notes_media ORDER BY sort_order, id');
+  return rows.map(mediaItemOut);
 }
 
-function getSwState() {
-  const rows = db.prepare('SELECT * FROM sw_state').all();
+async function getSwState() {
+  const { rows } = await query('SELECT * FROM sw_state');
   const out = {};
   rows.forEach(r => { out[r.group_key] = { good: r.good_html, bad: r.bad_html }; });
   return out;
 }
 
-function getUiState() {
-  const row = db.prepare('SELECT * FROM ui_state WHERE id = 1').get();
+async function getUiState() {
+  const { rows } = await query('SELECT * FROM ui_state WHERE id = 1');
+  const row = rows[0];
   if (!row) return { collapsed: {}, texts: {}, groupCollapsed: {} };
   return {
     collapsed: JSON.parse(row.collapsed_json || '{}'),
@@ -46,9 +58,8 @@ function getUiState() {
   };
 }
 
-function computePlanRows() {
-  const bookwiseRows = getRowsForApp('bookwise');
-  const soulieRows = getRowsForApp('soulie');
+async function computePlanRows() {
+  const [bookwiseRows, soulieRows] = await Promise.all([getRowsForApp('bookwise'), getRowsForApp('soulie')]);
   const all = [
     ...soulieRows.map(r => ({ ...r, app: 'Soulie' })),
     ...bookwiseRows.map(r => ({ ...r, app: 'BookWise' }))
@@ -72,14 +83,16 @@ function computePlanRows() {
   }));
 }
 
-function getFullState() {
-  return {
-    rows: { bookwise: getRowsForApp('bookwise'), soulie: getRowsForApp('soulie') },
-    notesMedia: getNotesMedia(),
-    planRows: computePlanRows(),
-    swState: getSwState(),
-    uiState: getUiState()
-  };
+async function getFullState() {
+  const [bookwise, soulie, notesMedia, planRows, swState, uiState] = await Promise.all([
+    getRowsForApp('bookwise'),
+    getRowsForApp('soulie'),
+    getNotesMedia(),
+    computePlanRows(),
+    getSwState(),
+    getUiState()
+  ]);
+  return { rows: { bookwise, soulie }, notesMedia, planRows, swState, uiState };
 }
 
 module.exports = { getRowsForApp, getNotesMedia, getSwState, getUiState, computePlanRows, getFullState };

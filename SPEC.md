@@ -1,5 +1,7 @@
 # Creative Experiment Log — Spec
 
+> **Cập nhật quan trọng:** doc này viết cho DB là **SQLite**. Thực tế production hiện dùng **PostgreSQL** (Replit Agent tự migrate vì `better-sqlite3` build fail trên môi trường deploy Replit) — xem lý do đầy đủ + pattern code hiện tại trong [CLAUDE.md](CLAUDE.md) §"Vì sao đổi từ SQLite sang PostgreSQL". Data model/shape (tên bảng, field) bên dưới vẫn đúng, chỉ khác cú pháp SQL (Postgres thay vì SQLite) và toàn bộ query giờ là `async`.
+
 ## 1. Nguồn gốc
 
 Tool này bắt đầu là **1 file HTML tĩnh** (`creative-experiment-log-2026-07-28-v3.html`, ở thư mục cha) — không backend, không build step. Toàn bộ state (bảng thực nghiệm, media, nhận xét, dashboard) sống trong `IndexedDB` của trình duyệt, và có nút "Export HTML" để đóng gói toàn bộ state + media (base64) vào 1 file HTML mới để gửi cho người khác xem — không có server nào ở giữa.
@@ -136,7 +138,7 @@ Giữ gần như nguyên vẹn markup/CSS/UX của file HTML gốc (kể cả te
 
 ## 6. Deploy trên Replit — lưu ý quan trọng
 
-- SQLite file (`data.db`) và thư mục `uploads/` phải nằm trong **Persistent Storage** của Repl. Trên gói Autoscale/free, filesystem có thể bị reset khi container redeploy/scale — cần bật tùy chọn Persistent Storage (hoặc dùng Reserved VM) trong phần Deployments của Replit, nếu không sẽ **mất hết video + data mỗi lần redeploy**.
+- DB giờ là Postgres managed của Replit (`DATABASE_URL`), persist độc lập với container — không cần Persistent Storage cho phần DB nữa. Thư mục `uploads/` (media upload trực tiếp) thì vẫn là file trên disk container — vẫn phải bật **Persistent Storage** (hoặc Reserved VM) cho riêng thư mục này, nếu không sẽ **mất hết video/ảnh upload trực tiếp mỗi lần redeploy** (video Drive link thì không sao, vì không lưu trên disk).
 - Giới hạn kích thước file upload (nginx/Express `multer` limit) — bản gốc chặn ở 200MB/file, giữ nguyên ngưỡng này ở backend (`multer({ limits: { fileSize: 200*1024*1024 } })`).
 - 1 process Node duy nhất vừa serve static frontend vừa serve API — không cần 2 port riêng.
 

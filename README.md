@@ -18,19 +18,20 @@ Repo: https://github.com/dvthmy/creative-log-app
 
 ## Nguồn gốc
 
-Bắt đầu từ 1 file HTML tĩnh (`creative-experiment-log-2026-07-28-v3.html`, ở thư mục cha) — chạy hoàn toàn trong trình duyệt, lưu dữ liệu bằng IndexedDB cục bộ trên từng máy. Dự án này port lại thành app có backend (Node.js + Express + SQLite) để dữ liệu dùng chung được giữa nhiều người, deploy trên Replit.
+Bắt đầu từ 1 file HTML tĩnh (`creative-experiment-log-2026-07-28-v3.html`, ở thư mục cha) — chạy hoàn toàn trong trình duyệt, lưu dữ liệu bằng IndexedDB cục bộ trên từng máy. Dự án này port lại thành app có backend (Node.js + Express + PostgreSQL) để dữ liệu dùng chung được giữa nhiều người, deploy trên Replit.
 
 ## Stack
 
-Node.js + Express + SQLite (`better-sqlite3`) + lưu file media trên disk (`uploads/`). Frontend vanilla JS/HTML/CSS, không build step, không framework. Chi tiết kiến trúc/data model xem [SPEC.md](SPEC.md); quy tắc code khi sửa xem [CLAUDE.md](CLAUDE.md).
+Node.js + Express + PostgreSQL (qua `pg`, biến môi trường `DATABASE_URL`) + lưu file media trên disk (`uploads/`). Frontend vanilla JS/HTML/CSS, không build step, không framework. Chi tiết kiến trúc/data model xem [SPEC.md](SPEC.md); quy tắc code khi sửa xem [CLAUDE.md](CLAUDE.md) — có ghi rõ vì sao đổi từ SQLite sang Postgres.
 
 ## Chạy local
 
+Cần 1 Postgres để trỏ tới (local qua Docker, hoặc dùng chung Postgres của Replit, hoặc bất kỳ instance nào khác):
 ```
 npm install
-node server.js
+DATABASE_URL="postgres://user:pass@host:port/dbname" node server.js
 ```
-Mở `http://localhost:3000`. Lần chạy đầu tiên, `data.db` tự tạo và seed dữ liệu từ `seed-data.json`.
+Mở `http://localhost:3000`. Lần chạy đầu tiên với DB rỗng, schema + seed dữ liệu từ `seed-data.json` tự chạy.
 
 Nếu terminal báo `EADDRINUSE: address already in use :::3000` — đã có 1 process Node khác đang chạy, không cần chạy thêm. Muốn dừng: `Ctrl+C` trong terminal đang chạy nó, đợi dấu nhắc quay lại rồi mới chạy lại.
 
@@ -41,7 +42,7 @@ git add -A
 git commit -m "..."
 git push
 ```
-Repo đã gắn remote `origin` sẵn. `node_modules/`, `data.db`, `data.db-wal`, `data.db-shm`, `uploads/*` đã bị `.gitignore` loại — không push nhầm database/media thật lên git.
+Repo đã gắn remote `origin` sẵn. `node_modules/`, `uploads/*` đã bị `.gitignore` loại — không push nhầm media thật lên git. `DATABASE_URL` không commit vào code, luôn lấy từ biến môi trường/Secrets.
 
 ## Deploy trên Replit — những điểm dễ vướng
 
@@ -49,7 +50,9 @@ Repo đã gắn remote `origin` sẵn. `node_modules/`, `data.db`, `data.db-wal`
 
 **"Run command is required" khi Publish:** file `.replit` chỉ áp dụng cho nút Run khi dev trong Workspace — Deployment (Publish) không tự đọc `.replit`, phải khai báo tay trong màn hình **Publishing** (sidebar): Build command `npm install`, Run command `node server.js`.
 
-**Sai loại deployment sẽ mất dữ liệu:** app lưu state vào SQLite (`data.db`) + `uploads/` trên disk local, không dùng cloud storage. Loại **Autoscale** (mặc định Replit hay gợi ý) chạy nhiều instance không chia sẻ disk và **xoá sạch filesystem mỗi lần redeploy** → mất hết data. **Bắt buộc đổi sang "Reserved VM"** (1 instance cố định, disk bền) trong Publishing trước khi cho team dùng thật.
+**`DATABASE_URL` phải có trong Secrets:** nếu dùng Postgres managed của Replit, biến này thường tự có sẵn sau khi tạo database trong tab Database. Kiểm tra nó cũng được set trong phần **Deployments → Secrets** (không chỉ Workspace), nếu không app sẽ crash lúc kết nối DB khi deploy.
+
+**Sai loại deployment vẫn có thể mất `uploads/`:** DB (Postgres) persist độc lập với container nên không sao, nhưng thư mục `uploads/` (media upload trực tiếp, không phải Drive link) vẫn là file trên disk container. Loại **Autoscale** (mặc định Replit hay gợi ý) chạy nhiều instance không chia sẻ disk và **xoá sạch filesystem mỗi lần redeploy** → mất các file đã upload trực tiếp. Nếu team upload file thật nhiều, cân nhắc đổi sang **"Reserved VM"** (1 instance cố định, disk bền) trong Publishing.
 
 **Visibility Private = bắt đăng nhập Replit:** nếu để Private, người vào link phải có tài khoản Replit + được cấp quyền. Đổi sang **Public** để cả team dùng được không cần đăng nhập Replit.
 
