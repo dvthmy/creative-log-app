@@ -195,14 +195,9 @@
     addMediaFile(selectedAdd.items, selectedAdd.target, item.getAsFile(), selectedAdd.rerender);
   });
 
-  function renderMediaItem(item, items, idx, target, rerender, roleLabel){
+  function renderMediaItem(item, items, idx, target, rerender){
     const wrap = document.createElement('div'); wrap.className = 'mitem-wrap';
     const el = document.createElement('div'); el.className = 'mitem';
-    if(roleLabel){
-      const role = document.createElement('div'); role.className = 'mitem-role ' + (roleLabel === 'REF' ? 'ref' : 'out');
-      role.textContent = roleLabel;
-      el.appendChild(role);
-    }
     let isVideo = false;
     if(item.mediaId){
       isVideo = (item.mediaType||'').startsWith('video/');
@@ -252,9 +247,9 @@
     wrap.appendChild(el);
     return wrap;
   }
-  function renderMediaStack(host, items, target, rerender, roleLabel){
+  function renderMediaStack(host, items, target, rerender){
     host.innerHTML = '';
-    items.forEach((item, idx)=> host.appendChild(renderMediaItem(item, items, idx, target, rerender, roleLabel)));
+    items.forEach((item, idx)=> host.appendChild(renderMediaItem(item, items, idx, target, rerender)));
     const addWrap = document.createElement('div'); addWrap.className = 'madd-wrap';
     const add = document.createElement('div'); add.className = 'madd'; add.textContent = '+';
     add.title = 'Click để thêm — hoặc Cmd/Ctrl+V để dán, kéo-thả file';
@@ -367,7 +362,7 @@
     const refHost = document.createElement('div'); refHost.className = 'mstack mstack-row';
     col2.appendChild(refHost);
     const refTarget = { kind:'row', rowId: row.id, slot:'reference' };
-    const rerenderRef = ()=>{ renderMediaStack(refHost, row.reference, refTarget, rerenderRef, 'REF'); updateColBalance(); };
+    const rerenderRef = ()=>{ renderMediaStack(refHost, row.reference, refTarget, rerenderRef); updateColBalance(); };
     rerenderRef();
 
     const col3 = document.createElement('div');
@@ -380,7 +375,7 @@
     const resHost = document.createElement('div'); resHost.className = 'mstack mstack-row';
     col3.appendChild(resHost);
     const resTarget = { kind:'row', rowId: row.id, slot:'result' };
-    const rerenderRes = ()=>{ renderMediaStack(resHost, row.result, resTarget, rerenderRes, 'OUT'); renderHighlightGrid(); };
+    const rerenderRes = ()=>{ renderMediaStack(resHost, row.result, resTarget, rerenderRes); renderHighlightGrid(); };
     rerenderRes();
 
     mediaCols.appendChild(col2); mediaCols.appendChild(col3);
