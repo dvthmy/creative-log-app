@@ -33,8 +33,11 @@ async function createSchema() {
       media_id TEXT,
       media_type TEXT,
       caption TEXT DEFAULT '',
-      sort_order INTEGER NOT NULL DEFAULT 0
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      highlighted BOOLEAN NOT NULL DEFAULT FALSE
     );
+
+    ALTER TABLE row_media ADD COLUMN IF NOT EXISTS highlighted BOOLEAN NOT NULL DEFAULT FALSE;
 
     CREATE TABLE IF NOT EXISTS notes_media (
       id SERIAL PRIMARY KEY,

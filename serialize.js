@@ -4,6 +4,7 @@ function mediaItemOut(m) {
   const out = { id: m.id, caption: m.caption || '' };
   if (m.kind === 'drive') out.driveId = m.drive_id;
   else { out.mediaId = m.media_id; out.mediaType = m.media_type; }
+  if (m.highlighted) out.highlighted = true;
   return out;
 }
 
@@ -72,9 +73,9 @@ async function computePlanRows() {
   ];
   const map = new Map();
   all.forEach(r => {
-    const key = (r.visualStyle || '(chưa đặt tên)') + '|' + r.app + '|' + r.mediaKind;
+    const key = (r.visualStyle || 'Unknown') + '|' + r.app + '|' + r.mediaKind;
     if (!map.has(key)) {
-      map.set(key, { visualStyle: r.visualStyle || '(chưa đặt tên)', app: r.app, mediaKind: r.mediaKind, count: 0, groups: new Set() });
+      map.set(key, { visualStyle: r.visualStyle || 'Unknown', app: r.app, mediaKind: r.mediaKind, count: 0, groups: new Set() });
     }
     const e = map.get(key);
     e.count++;

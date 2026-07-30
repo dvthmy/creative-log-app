@@ -9,8 +9,13 @@ const router = express.Router();
 router.patch('/:id', async (req, res, next) => {
   try {
     const id = Number(req.params.id);
-    if (typeof req.body.caption !== 'string') return res.status(400).json({ error: 'Thiếu caption' });
-    await query('UPDATE row_media SET caption = $1 WHERE id = $2', [req.body.caption, id]);
+    const sets = [];
+    const values = [];
+    if (typeof req.body.caption === 'string') { sets.push(`caption = $${sets.length + 1}`); values.push(req.body.caption); }
+    if (typeof req.body.highlighted === 'boolean') { sets.push(`highlighted = $${sets.length + 1}`); values.push(req.body.highlighted); }
+    if (!sets.length) return res.status(400).json({ error: 'Thiếu caption/highlighted' });
+    values.push(id);
+    await query(`UPDATE row_media SET ${sets.join(', ')} WHERE id = $${values.length}`, values);
     res.json({ ok: true });
   } catch (e) { next(e); }
 });

@@ -33,7 +33,6 @@
   function mediaUrl(item){ return item.mediaId ? '/uploads/' + item.mediaId : null; }
   function openFullscreen(item){
     fsFrame.innerHTML = '';
-    fsFrame.style.aspectRatio = '9/16'; // mặc định — sẽ khớp lại đúng tỉ lệ thật nếu biết được
     if(item.mediaId){
       const url = mediaUrl(item);
       const isVideo = (item.mediaType||'').startsWith('video/');
@@ -41,13 +40,6 @@
       el.src = url;
       if(isVideo){
         el.controls = true; el.autoplay = true; el.loop = true; el.playsInline = true;
-        el.addEventListener('loadedmetadata', ()=>{
-          if(el.videoWidth && el.videoHeight) fsFrame.style.aspectRatio = el.videoWidth + '/' + el.videoHeight;
-        });
-      }else{
-        el.addEventListener('load', ()=>{
-          if(el.naturalWidth && el.naturalHeight) fsFrame.style.aspectRatio = el.naturalWidth + '/' + el.naturalHeight;
-        });
       }
       fsFrame.appendChild(el);
     }else if(item.driveId){
@@ -228,6 +220,23 @@
       catch(err){ toast('⚠️ Xoá thất bại: ' + err.message); return; }
       items.splice(idx,1); rerender();
     };
+    if(target.kind === 'row' && target.slot === 'result'){
+      const star = document.createElement('button'); star.className = 'micon-btn micon-star' + (item.highlighted ? ' on' : '');
+      star.textContent = item.highlighted ? '★' : '☆';
+      star.title = item.highlighted ? 'Bỏ khỏi Highlights this week' : 'Đánh dấu highlight tuần này';
+      star.onclick = async e=>{
+        e.stopPropagation();
+        const next = !item.highlighted;
+        try{ await api('PATCH', endpointsFor(target).item(item.id), { highlighted: next }); }
+        catch(err){ toast('⚠️ Lưu highlight thất bại: ' + err.message); return; }
+        item.highlighted = next;
+        star.className = 'micon-btn micon-star' + (item.highlighted ? ' on' : '');
+        star.textContent = item.highlighted ? '★' : '☆';
+        star.title = item.highlighted ? 'Bỏ khỏi Highlights this week' : 'Đánh dấu highlight tuần này';
+        renderHighlightGrid();
+      };
+      tools.appendChild(star);
+    }
     tools.appendChild(exp); tools.appendChild(rm);
     const titleWrap = document.createElement('div'); titleWrap.className = 'mitem-title-wrap';
     const cap = document.createElement('div'); cap.className = 'mitem-title'; cap.contentEditable = true;
@@ -322,7 +331,7 @@
     const delBtn = document.createElement('button'); delBtn.className = 'kind-toggle'; delBtn.textContent = '✕ Xoá dòng';
     delBtn.title = 'Xoá cả dòng experiment này';
     delBtn.onclick = async ()=>{
-      if(!confirm('Xoá dòng "' + (row.visualStyle || '(chưa đặt tên)') + '"? Không thể hoàn tác.')) return;
+      if(!confirm('Xoá dòng "' + (row.visualStyle || 'Unknown') + '"? Không thể hoàn tác.')) return;
       try{ await api('DELETE', '/api/rows/'+row.id); }
       catch(e){ toast('⚠️ Xoá thất bại: ' + e.message); return; }
       const arr = appKey === 'soulie' ? soulieRowsState : bookwiseRowsState;
@@ -399,7 +408,7 @@
     cntEl.textContent = rows.reduce((sum,r)=>sum+(r.result||[]).length, 0);
     if(!rows.length){
       const empty = document.createElement('div'); empty.className = 'empty-group';
-      empty.textContent = 'Chưa có experiment nào trong đợt này';
+      empty.textContent = 'Chưa có experiment nào trong tuần này';
       rowsHost.appendChild(empty);
       return;
     }
@@ -499,8 +508,8 @@
   function computePlanRows(rows){
     const map = new Map();
     rows.forEach(r=>{
-      const key = (r.visualStyle || '(chưa đặt tên)') + '|' + r.mediaKind;
-      if(!map.has(key)) map.set(key, { visualStyle: r.visualStyle || '(chưa đặt tên)', mediaKind: r.mediaKind, count: 0, groups: new Set() });
+      const key = (r.visualStyle || 'Unknown') + '|' + r.mediaKind;
+      if(!map.has(key)) map.set(key, { visualStyle: r.visualStyle || 'Unknown', mediaKind: r.mediaKind, count: 0, groups: new Set() });
       const e = map.get(key);
       e.count += (r.result||[]).length; e.groups.add(r.dateGroup);
     });
@@ -540,8 +549,8 @@
     const tiles = document.getElementById('kpi-tiles');
     tiles.innerHTML = '';
     tiles.appendChild(kpiTile('Tổng creative', total, 'BookWise ' + bwTotal + ' · Soulie ' + slTotal, 'total'));
-    tiles.appendChild(kpiTile('BookWise', bwTotal, perWeek.map(w=>w.bw).join(' → ') + ' qua ' + perWeek.length + ' đợt', 'bookwise'));
-    tiles.appendChild(kpiTile('Soulie', slTotal, perWeek.map(w=>w.sl).join(' → ') + ' qua ' + perWeek.length + ' đợt', 'soulie'));
+    tiles.appendChild(kpiTile('BookWise', bwTotal, perWeek.map(w=>w.bw).join(' → ') + ' qua ' + perWeek.length + ' tuần', 'bookwise'));
+    tiles.appendChild(kpiTile('Soulie', slTotal, perWeek.map(w=>w.sl).join(' → ') + ' qua ' + perWeek.length + ' tuần', 'soulie'));
 
     const body = document.getElementById('kpi-table-body');
     body.innerHTML = '';
@@ -583,7 +592,7 @@
       const tdCount = document.createElement('td'); tdCount.className = 'count'; tdCount.textContent = e.count;
       const tdGroups = document.createElement('td'); tdGroups.textContent = e.groups;
       tr.appendChild(tdStyle); tr.appendChild(tdKind); tr.appendChild(tdCount); tr.appendChild(tdGroups);
-      const matches = rows.filter(r=>(r.visualStyle||'(chưa đặt tên)')===e.visualStyle && r.mediaKind===e.mediaKind);
+      const matches = rows.filter(r=>(r.visualStyle||'Unknown')===e.visualStyle && r.mediaKind===e.mediaKind);
       const match = (lw && matches.find(r=>r.dateGroup===lw.key)) || matches[0];
       if(match){
         tr.className = 'plan-row-link';
@@ -621,24 +630,42 @@
     return weeksState.find(w=>w.key === selectedHighlightWeekKey) || latestWeek();
   }
   function renderHighlightWeekSelect(){
-    const sel = document.getElementById('hl-week-select');
-    sel.innerHTML = '';
-    weeksState.forEach(w=>{
-      const opt = document.createElement('option'); opt.value = w.key; opt.textContent = w.label;
-      sel.appendChild(opt);
-    });
+    const dd = document.getElementById('hl-week-dd');
+    const btn = document.getElementById('hl-week-dd-btn');
+    const list = document.getElementById('hl-week-dd-list');
     const lw = latestWeek();
-    sel.value = selectedHighlightWeekKey || (lw ? lw.key : '');
-    sel.onchange = ()=>{ selectedHighlightWeekKey = sel.value; renderHighlightGrid(); };
+    if(!selectedHighlightWeekKey || !weeksState.some(w=>w.key === selectedHighlightWeekKey)){
+      selectedHighlightWeekKey = lw ? lw.key : '';
+    }
+    list.innerHTML = '';
+    weeksState.forEach(w=>{
+      const li = document.createElement('li');
+      li.className = 'hl-week-dd-item' + (w.key === selectedHighlightWeekKey ? ' active' : '');
+      li.textContent = w.label;
+      li.onclick = ()=>{
+        selectedHighlightWeekKey = w.key;
+        dd.classList.remove('on');
+        renderHighlightWeekSelect();
+        renderHighlightGrid();
+      };
+      list.appendChild(li);
+    });
+    const current = weeksState.find(w=>w.key === selectedHighlightWeekKey);
+    btn.textContent = current ? current.label : '';
+    btn.onclick = (e)=>{ e.stopPropagation(); dd.classList.toggle('on'); };
   }
+  document.addEventListener('click', (e)=>{
+    const dd = document.getElementById('hl-week-dd');
+    if(dd && !dd.contains(e.target)) dd.classList.remove('on');
+  });
   function buildHighlightList(){
     const wk = highlightWeek();
     if(!wk) return [];
     const list = [];
     [ ['Soulie','soulie', soulieRowsState], ['BookWise','bookwise', bookwiseRowsState] ].forEach(([appLabel, appCls, arr])=>{
       arr.filter(r=>r.dateGroup === wk.key && r.mediaKind === 'video').forEach(r=>{
-        (r.result||[]).forEach(m=>{
-          const label = r.visualStyle || r.tool || '(chưa đặt tên)';
+        (r.result||[]).filter(m=>m.highlighted).forEach(m=>{
+          const label = r.visualStyle || r.tool || 'Unknown';
           if(m.mediaId) list.push({ kind:'upload', url: mediaUrl(m), mediaId: m.mediaId, mediaType: m.mediaType, appLabel, appCls, label, rowId: r.id, dateGroup: r.dateGroup });
           else if(m.driveId) list.push({ kind:'drive', driveId: m.driveId, appLabel, appCls, label, rowId: r.id, dateGroup: r.dateGroup });
         });
@@ -653,15 +680,15 @@
     host.innerHTML = '';
     if(hlObserver) hlObserver.disconnect();
     const wk = highlightWeek();
-    const wkLabel = wk ? wk.label : 'đợt gần nhất';
+    const wkLabel = wk ? wk.label : 'tuần gần nhất';
     const full = buildHighlightList();
     const list = full.slice(0, HIGHLIGHT_MAX);
     sub.textContent = full.length > HIGHLIGHT_MAX
-      ? 'Video kết quả của đợt ' + wkLabel + ' (đang hiện ' + HIGHLIGHT_MAX + '/' + full.length + ')'
-      : 'Video kết quả của đợt ' + wkLabel;
+      ? 'Video được chọn highlight của tuần ' + wkLabel + ' (đang hiện ' + HIGHLIGHT_MAX + '/' + full.length + ')'
+      : 'Video được chọn highlight của tuần ' + wkLabel;
     if(!list.length){
       host.className = 'highlight-grid empty-note';
-      host.textContent = 'Chưa có video nào trong đợt ' + wkLabel;
+      host.textContent = 'Chưa chọn video highlight nào cho tuần ' + wkLabel + ' — bấm ☆ trên video kết quả để thêm';
       return;
     }
     host.className = 'highlight-grid';
@@ -675,21 +702,22 @@
           else video.pause();
         }else if(entry.isIntersecting && !card.dataset.loaded){
           const ifr = card.querySelector('iframe');
-          if(ifr){ ifr.src = 'https://drive.google.com/file/d/'+card.dataset.driveId+'/preview'; card.dataset.loaded = '1'; }
+          if(ifr){ ifr.src = 'https://drive.google.com/file/d/'+card.dataset.driveId+'/preview?autoplay=1&mute=1'; card.dataset.loaded = '1'; }
         }
       });
     }, { threshold: 0.5 });
     list.forEach(item=>{
       const card = document.createElement('div'); card.className = 'hl-card'; card.dataset.kind = item.kind;
       if(item.kind === 'drive') card.dataset.driveId = item.driveId;
+      let video = null, ifr = null;
       if(item.kind === 'upload'){
-        const video = document.createElement('video');
+        video = document.createElement('video');
         video.muted = true; video.loop = true; video.playsInline = true; video.src = item.url;
         video.addEventListener('loadeddata', ()=>card.classList.add('hl-ready'), { once:true });
         video.addEventListener('error', ()=>card.classList.add('hl-ready'), { once:true });
         card.appendChild(video);
       }else{
-        const ifr = document.createElement('iframe');
+        ifr = document.createElement('iframe');
         ifr.loading = 'lazy'; ifr.setAttribute('allow','autoplay');
         ifr.addEventListener('load', ()=>card.classList.add('hl-ready'), { once:true });
         card.appendChild(ifr);
@@ -709,8 +737,39 @@
         e.stopPropagation();
         scrollToExpRow(item.rowId, item.appCls, item.dateGroup);
       });
-      card.appendChild(badge); card.appendChild(titleWrap); card.appendChild(jumpBtn);
-      card.addEventListener('click', ()=>openFullscreen(item));
+      const tools = document.createElement('div'); tools.className = 'hl-tools';
+      const zoomBtn = document.createElement('button'); zoomBtn.className = 'hl-tool-btn'; zoomBtn.textContent = '⤢';
+      zoomBtn.title = 'Xem toàn màn hình';
+      zoomBtn.addEventListener('click', e=>{ e.stopPropagation(); openFullscreen(item); });
+      tools.appendChild(zoomBtn);
+      const playBtn = document.createElement('button'); playBtn.className = 'hl-tool-btn'; playBtn.textContent = '⏸';
+      playBtn.title = 'Tạm dừng';
+      function setPlayIcon(playing){
+        playBtn.textContent = playing ? '⏸' : '▶';
+        playBtn.title = playing ? 'Tạm dừng' : 'Phát tiếp';
+      }
+      function togglePlay(){
+        if(item.kind === 'upload'){
+          if(!video) return;
+          if(video.paused){ video.play().catch(()=>{}); setPlayIcon(true); }
+          else{ video.pause(); setPlayIcon(false); }
+        }else{
+          if(!ifr) return;
+          if(card.dataset.stopped === '1'){
+            ifr.src = 'https://drive.google.com/file/d/'+item.driveId+'/preview?autoplay=1&mute=1';
+            card.dataset.stopped = '0';
+            setPlayIcon(true);
+          }else{
+            ifr.src = '';
+            card.dataset.stopped = '1';
+            setPlayIcon(false);
+          }
+        }
+      }
+      playBtn.addEventListener('click', e=>{ e.stopPropagation(); togglePlay(); });
+      tools.appendChild(playBtn);
+      card.appendChild(badge); card.appendChild(titleWrap); card.appendChild(jumpBtn); card.appendChild(tools);
+      card.addEventListener('click', togglePlay);
       host.appendChild(card);
       hlObserver.observe(card);
     });
@@ -849,8 +908,8 @@
       renderSummary();
       renderHighlightWeekSelect();
       renderHighlightGrid();
-      toast('✓ Đã thêm đợt ' + week.label);
-    }catch(e){ toast('⚠️ Thêm đợt thất bại: ' + e.message); }
+      toast('✓ Đã thêm tuần ' + week.label);
+    }catch(e){ toast('⚠️ Thêm tuần thất bại: ' + e.message); }
   });
 
   /* =====================================================================

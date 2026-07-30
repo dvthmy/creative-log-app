@@ -23,7 +23,7 @@ router.post('/', async (req, res, next) => {
        ON CONFLICT (key) DO NOTHING RETURNING id`,
       [key, label, sortOrder]
     );
-    if (!rows.length) return res.status(409).json({ error: 'Đợt này đã tồn tại' });
+    if (!rows.length) return res.status(409).json({ error: 'Tuần này đã tồn tại' });
     res.json({ id: rows[0].id, key, label, sortOrder });
   } catch (e) { next(e); }
 });
