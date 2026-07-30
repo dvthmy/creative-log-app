@@ -31,17 +31,124 @@
   const fsModal = document.getElementById('fsmodal');
   const fsFrame = document.getElementById('fs-frame');
   function mediaUrl(item){ return item.mediaId ? '/uploads/' + item.mediaId : null; }
+
+  /* ---- custom video controls, shared by the fullscreen modal + highlight cards ---- */
+  const VIDEO_MUTE_KEY = 'clog-video-muted';
+  function getRememberedMute(){ return localStorage.getItem(VIDEO_MUTE_KEY) !== '0'; }
+  function setRememberedMute(m){ localStorage.setItem(VIDEO_MUTE_KEY, m ? '1' : '0'); }
+  function fmtTime(sec){
+    if(!isFinite(sec) || sec < 0) sec = 0;
+    const m = Math.floor(sec/60), s = Math.floor(sec%60);
+    return m + ':' + String(s).padStart(2,'0');
+  }
+  // wrap: element with position:relative that the video already sits inside of
+  function attachVideoControls(video, wrap, opts){
+    opts = opts || {};
+    wrap.classList.add('vctrl-wrap');
+    const bar = document.createElement('div'); bar.className = 'vctrl-bar';
+
+    const playBtn = document.createElement('button'); playBtn.className = 'vctrl-btn'; playBtn.type = 'button';
+    const back10 = document.createElement('button'); back10.className = 'vctrl-btn'; back10.type = 'button';
+    back10.textContent = '⏪'; back10.title = 'Lùi 10s';
+    const fwd10 = document.createElement('button'); fwd10.className = 'vctrl-btn'; fwd10.type = 'button';
+    fwd10.textContent = '⏩'; fwd10.title = 'Tiến 10s';
+    const seek = document.createElement('input'); seek.type = 'range'; seek.min = 0; seek.max = 1000; seek.value = 0;
+    seek.className = 'vctrl-seek';
+    const timeLabel = document.createElement('div'); timeLabel.className = 'vctrl-time'; timeLabel.textContent = '0:00 / 0:00';
+    const muteBtn = document.createElement('button'); muteBtn.className = 'vctrl-btn'; muteBtn.type = 'button';
+    const fsBtn = document.createElement('button'); fsBtn.className = 'vctrl-btn'; fsBtn.type = 'button';
+    fsBtn.textContent = '⛶'; fsBtn.title = 'Toàn màn hình';
+
+    function setPlayIcon(){ playBtn.textContent = video.paused ? '▶' : '⏸'; playBtn.title = video.paused ? 'Phát' : 'Tạm dừng'; }
+    function setMuteIcon(){ muteBtn.textContent = video.muted ? '🔇' : '🔊'; muteBtn.title = video.muted ? 'Bật tiếng' : 'Tắt tiếng'; }
+    setPlayIcon(); setMuteIcon();
+
+    playBtn.addEventListener('click', e=>{ e.stopPropagation(); if(video.paused) video.play().catch(()=>{}); else video.pause(); });
+    back10.addEventListener('click', e=>{ e.stopPropagation(); video.currentTime = Math.max(0, video.currentTime - 10); });
+    fwd10.addEventListener('click', e=>{ e.stopPropagation(); video.currentTime = Math.min(video.duration || 1e9, video.currentTime + 10); });
+    muteBtn.addEventListener('click', e=>{
+      e.stopPropagation();
+      video.muted = !video.muted;
+      if(opts.rememberMute) setRememberedMute(video.muted);
+      setMuteIcon();
+    });
+
+    let seeking = false;
+    seek.addEventListener('pointerdown', e=>{ e.stopPropagation(); seeking = true; });
+    seek.addEventListener('input', ()=>{ if(video.duration) video.currentTime = (seek.value/1000) * video.duration; });
+    seek.addEventListener('pointerup', e=>{ e.stopPropagation(); seeking = false; });
+    seek.addEventListener('click', e=>e.stopPropagation());
+
+    function updateProgress(){
+      if(!video.duration || seeking) return;
+      seek.value = Math.round((video.currentTime/video.duration)*1000);
+      timeLabel.textContent = fmtTime(video.currentTime) + ' / ' + fmtTime(video.duration);
+    }
+    video.addEventListener('timeupdate', updateProgress);
+    video.addEventListener('loadedmetadata', updateProgress);
+    video.addEventListener('play', setPlayIcon);
+    video.addEventListener('pause', setPlayIcon);
+
+    bar.appendChild(playBtn); bar.appendChild(back10); bar.appendChild(fwd10);
+    bar.appendChild(seek); bar.appendChild(timeLabel); bar.appendChild(muteBtn);
+    if(opts.fullscreen){
+      fsBtn.addEventListener('click', e=>{
+        e.stopPropagation();
+        if(document.fullscreenElement) document.exitFullscreen();
+        else if(video.requestFullscreen) video.requestFullscreen().catch(()=>{});
+      });
+      bar.appendChild(fsBtn);
+    }
+    wrap.appendChild(bar);
+
+    // auto show/hide: appears on hover/tap, hides itself after idle while playing
+    let hideTimer;
+    function showBar(){
+      bar.classList.add('show');
+      clearTimeout(hideTimer);
+      if(!video.paused){
+        hideTimer = setTimeout(()=>{ if(!bar.matches(':hover')) bar.classList.remove('show'); }, 2500);
+      }
+    }
+    wrap.addEventListener('mousemove', showBar);
+    wrap.addEventListener('touchstart', showBar, { passive:true });
+    video.addEventListener('pause', ()=>{ clearTimeout(hideTimer); bar.classList.add('show'); });
+    video.addEventListener('play', showBar);
+    showBar();
+
+    let keyHandler = null;
+    if(opts.keyboard){
+      keyHandler = e=>{
+        if(e.key === ' '){ e.preventDefault(); playBtn.click(); }
+        else if(e.key === 'm' || e.key === 'M'){ muteBtn.click(); }
+        else if(e.key === 'ArrowLeft'){ back10.click(); }
+        else if(e.key === 'ArrowRight'){ fwd10.click(); }
+        else if((e.key === 'f' || e.key === 'F') && opts.fullscreen){ fsBtn.click(); }
+      };
+      document.addEventListener('keydown', keyHandler);
+    }
+    return { destroy(){ clearTimeout(hideTimer); if(keyHandler) document.removeEventListener('keydown', keyHandler); } };
+  }
+
+  let currentFsVideoCtrl = null;
   function openFullscreen(item){
     fsFrame.innerHTML = '';
+    if(currentFsVideoCtrl){ currentFsVideoCtrl.destroy(); currentFsVideoCtrl = null; }
     if(item.mediaId){
       const url = mediaUrl(item);
       const isVideo = (item.mediaType||'').startsWith('video/');
-      const el = document.createElement(isVideo ? 'video' : 'img');
-      el.src = url;
       if(isVideo){
-        el.controls = true; el.autoplay = true; el.loop = true; el.playsInline = true;
+        const wrap = document.createElement('div'); wrap.style.width = '100%'; wrap.style.height = '100%';
+        const el = document.createElement('video');
+        el.src = url; el.autoplay = true; el.loop = true; el.playsInline = true;
+        el.muted = getRememberedMute();
+        wrap.appendChild(el);
+        fsFrame.appendChild(wrap);
+        currentFsVideoCtrl = attachVideoControls(el, wrap, { fullscreen: true, keyboard: true, rememberMute: true });
+      }else{
+        const el = document.createElement('img'); el.src = url;
+        fsFrame.appendChild(el);
       }
-      fsFrame.appendChild(el);
     }else if(item.driveId){
       const ifr = document.createElement('iframe');
       ifr.src = 'https://drive.google.com/file/d/'+item.driveId+'/preview';
@@ -50,7 +157,10 @@
     }else return;
     fsModal.classList.add('on');
   }
-  function closeFullscreen(){ fsModal.classList.remove('on'); fsFrame.innerHTML = ''; }
+  function closeFullscreen(){
+    fsModal.classList.remove('on'); fsFrame.innerHTML = '';
+    if(currentFsVideoCtrl){ currentFsVideoCtrl.destroy(); currentFsVideoCtrl = null; }
+  }
   document.getElementById('fs-close').addEventListener('click', closeFullscreen);
   fsModal.addEventListener('click', e=>{ if(e.target === fsModal) closeFullscreen(); });
   document.addEventListener('keydown', e=>{ if(e.key === 'Escape') closeFullscreen(); });
@@ -701,6 +811,8 @@
           if(entry.isIntersecting) video.play().catch(()=>{});
           else video.pause();
         }else if(entry.isIntersecting && !card.dataset.loaded){
+          // NOTE: Drive's `mute` URL param isn't an official/reliable API — this autoplay
+          // can still end up with sound depending on the browser's autoplay heuristics.
           const ifr = card.querySelector('iframe');
           if(ifr){ ifr.src = 'https://drive.google.com/file/d/'+card.dataset.driveId+'/preview?autoplay=1&mute=1'; card.dataset.loaded = '1'; }
         }
@@ -742,6 +854,24 @@
       zoomBtn.title = 'Xem toàn màn hình';
       zoomBtn.addEventListener('click', e=>{ e.stopPropagation(); openFullscreen(item); });
       tools.appendChild(zoomBtn);
+      if(item.kind === 'upload'){
+        const muteBtn = document.createElement('button'); muteBtn.className = 'hl-tool-btn';
+        function setMuteIcon(){
+          muteBtn.textContent = video.muted ? '🔇' : '🔊';
+          muteBtn.title = video.muted ? 'Bật tiếng' : 'Tắt tiếng';
+        }
+        setMuteIcon();
+        muteBtn.addEventListener('click', e=>{ e.stopPropagation(); video.muted = !video.muted; setMuteIcon(); });
+        const back10Btn = document.createElement('button'); back10Btn.className = 'hl-tool-btn'; back10Btn.textContent = '⏪';
+        back10Btn.title = 'Lùi 10s';
+        back10Btn.addEventListener('click', e=>{ e.stopPropagation(); video.currentTime = Math.max(0, video.currentTime - 10); });
+        const fwd10Btn = document.createElement('button'); fwd10Btn.className = 'hl-tool-btn'; fwd10Btn.textContent = '⏩';
+        fwd10Btn.title = 'Tiến 10s';
+        fwd10Btn.addEventListener('click', e=>{ e.stopPropagation(); video.currentTime = Math.min(video.duration || 1e9, video.currentTime + 10); });
+        tools.appendChild(muteBtn); tools.appendChild(back10Btn); tools.appendChild(fwd10Btn);
+      }
+      // Google Drive embed is cross-origin — mute/seek can't be scripted from outside the iframe,
+      // so no mute/tua controls are shown for Drive cards. Open fullscreen (⤢) to use Google's own player controls.
       const playBtn = document.createElement('button'); playBtn.className = 'hl-tool-btn'; playBtn.textContent = '⏸';
       playBtn.title = 'Tạm dừng';
       function setPlayIcon(playing){
